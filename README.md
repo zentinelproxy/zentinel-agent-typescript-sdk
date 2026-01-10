@@ -24,6 +24,13 @@
   </a>
 </p>
 
+<p align="center">
+  <a href="docs/index.md">Documentation</a> •
+  <a href="docs/quickstart.md">Quickstart</a> •
+  <a href="docs/api.md">API Reference</a> •
+  <a href="docs/examples.md">Examples</a>
+</p>
+
 </div>
 
 ---
@@ -368,6 +375,8 @@ routes {
 | `timeout-ms` | Timeout for agent calls | `1000` |
 | `failure-mode` | `"open"` (allow on failure) or `"closed"` (block on failure) | `"open"` |
 
+See [docs/configuration.md](docs/configuration.md) for complete configuration reference.
+
 ---
 
 ## Examples
@@ -378,6 +387,8 @@ The `examples/` directory contains complete, runnable examples:
 |---------|-------------|
 | [`simple-agent.ts`](examples/simple-agent.ts) | Basic request blocking and header modification |
 | [`configurable-agent.ts`](examples/configurable-agent.ts) | Rate limiting with typed configuration |
+
+See [docs/examples.md](docs/examples.md) for more patterns: authentication, rate limiting, IP filtering, header transformation, and more.
 
 ---
 
