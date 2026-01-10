@@ -87,9 +87,11 @@ npx ts-node my-agent.ts --socket /tmp/my-agent.sock
 
 The SDK implements version 1 of the Sentinel Agent Protocol:
 
-- **Transport**: Unix domain sockets
-- **Encoding**: Length-prefixed JSON (4-byte big-endian length prefix)
+- **Transport**: Unix domain sockets (UDS) or gRPC
+- **Encoding**: Length-prefixed JSON (4-byte big-endian length prefix) for UDS
 - **Max message size**: 10MB
+
+For the canonical protocol specification, including wire format details, event types, and architectural diagrams, see the [Sentinel Agent Protocol documentation](https://github.com/raskell-io/sentinel/tree/main/crates/agent-protocol).
 
 ## License
 
