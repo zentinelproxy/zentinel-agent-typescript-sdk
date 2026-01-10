@@ -3,6 +3,11 @@
  */
 
 import { Decision } from "./decision.js";
+import {
+  GuardrailInspectEvent,
+  GuardrailResponse,
+  createGuardrailResponse,
+} from "./protocol.js";
 import { Request } from "./request.js";
 import { Response } from "./response.js";
 
@@ -101,6 +106,18 @@ export interface Agent {
    * @param durationMs - The request duration in milliseconds.
    */
   onRequestComplete?(request: Request, status: number, durationMs: number): Promise<void>;
+
+  /**
+   * Inspect content for guardrail violations.
+   *
+   * Called when content needs to be analyzed for prompt injection
+   * or PII detection. Override to implement custom guardrail logic.
+   *
+   * @param event - The guardrail inspection event containing content
+   *                and inspection parameters.
+   * @returns A GuardrailResponse indicating detection results.
+   */
+  onGuardrailInspect?(event: GuardrailInspectEvent): Promise<GuardrailResponse>;
 }
 
 /**
@@ -218,5 +235,9 @@ export abstract class ConfigurableAgent<T> implements Agent {
     _durationMs: number
   ): Promise<void> {
     // Default implementation does nothing
+  }
+
+  async onGuardrailInspect(_event: GuardrailInspectEvent): Promise<GuardrailResponse> {
+    return createGuardrailResponse();
   }
 }

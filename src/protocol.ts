@@ -13,6 +13,19 @@ export enum EventType {
   REQUEST_COMPLETE = "request_complete",
   WEBSOCKET_FRAME = "websocket_frame",
   CONFIGURE = "configure",
+  GUARDRAIL_INSPECT = "guardrail_inspect",
+}
+
+export enum GuardrailInspectionType {
+  PROMPT_INJECTION = "prompt_injection",
+  PII_DETECTION = "pii_detection",
+}
+
+export enum DetectionSeverity {
+  LOW = "low",
+  MEDIUM = "medium",
+  HIGH = "high",
+  CRITICAL = "critical",
 }
 
 export interface RequestMetadata {
@@ -171,6 +184,144 @@ export function parseConfigureEvent(data: Record<string, unknown>): ConfigureEve
     agentId: (data.agent_id as string) || "",
     config: (data.config as Record<string, unknown>) || {},
   };
+}
+
+// Guardrail types
+
+export interface TextSpan {
+  start: number;
+  end: number;
+}
+
+export interface GuardrailDetection {
+  category: string;
+  description: string;
+  severity: DetectionSeverity;
+  confidence?: number;
+  span?: TextSpan;
+}
+
+export function createGuardrailDetection(
+  category: string,
+  description: string
+): GuardrailDetection {
+  return {
+    category,
+    description,
+    severity: DetectionSeverity.MEDIUM,
+  };
+}
+
+export function guardrailDetectionToDict(detection: GuardrailDetection): Record<string, unknown> {
+  const result: Record<string, unknown> = {
+    category: detection.category,
+    description: detection.description,
+    severity: detection.severity,
+  };
+  if (detection.confidence !== undefined) {
+    result.confidence = detection.confidence;
+  }
+  if (detection.span !== undefined) {
+    result.span = { start: detection.span.start, end: detection.span.end };
+  }
+  return result;
+}
+
+export interface GuardrailInspectEvent {
+  correlationId: string;
+  inspectionType: GuardrailInspectionType;
+  content: string;
+  model?: string;
+  categories: string[];
+  routeId?: string;
+  metadata: Record<string, string>;
+}
+
+export function parseGuardrailInspectEvent(data: Record<string, unknown>): GuardrailInspectEvent {
+  const inspectionTypeStr = (data.inspection_type as string) || "prompt_injection";
+  let inspectionType: GuardrailInspectionType;
+  switch (inspectionTypeStr) {
+    case "pii_detection":
+      inspectionType = GuardrailInspectionType.PII_DETECTION;
+      break;
+    default:
+      inspectionType = GuardrailInspectionType.PROMPT_INJECTION;
+  }
+
+  return {
+    correlationId: (data.correlation_id as string) || "",
+    inspectionType,
+    content: (data.content as string) || "",
+    model: data.model as string | undefined,
+    categories: (data.categories as string[]) || [],
+    routeId: data.route_id as string | undefined,
+    metadata: (data.metadata as Record<string, string>) || {},
+  };
+}
+
+export interface GuardrailResponse {
+  detected: boolean;
+  confidence: number;
+  detections: GuardrailDetection[];
+  redactedContent?: string;
+}
+
+export function createGuardrailResponse(): GuardrailResponse {
+  return {
+    detected: false,
+    confidence: 0.0,
+    detections: [],
+  };
+}
+
+export function guardrailResponseToDict(response: GuardrailResponse): Record<string, unknown> {
+  const result: Record<string, unknown> = {
+    detected: response.detected,
+    confidence: response.confidence,
+    detections: response.detections.map(guardrailDetectionToDict),
+  };
+  if (response.redactedContent !== undefined) {
+    result.redacted_content = response.redactedContent;
+  }
+  return result;
+}
+
+export class GuardrailResponseBuilder {
+  private readonly _response: GuardrailResponse;
+
+  constructor() {
+    this._response = createGuardrailResponse();
+  }
+
+  static clean(): GuardrailResponseBuilder {
+    return new GuardrailResponseBuilder();
+  }
+
+  static withDetection(detection: GuardrailDetection): GuardrailResponseBuilder {
+    const builder = new GuardrailResponseBuilder();
+    builder._response.detected = true;
+    builder._response.confidence = detection.confidence ?? 1.0;
+    builder._response.detections.push(detection);
+    return builder;
+  }
+
+  addDetection(detection: GuardrailDetection): GuardrailResponseBuilder {
+    this._response.detected = true;
+    if (detection.confidence !== undefined) {
+      this._response.confidence = Math.max(this._response.confidence, detection.confidence);
+    }
+    this._response.detections.push(detection);
+    return this;
+  }
+
+  withRedactedContent(content: string): GuardrailResponseBuilder {
+    this._response.redactedContent = content;
+    return this;
+  }
+
+  build(): GuardrailResponse {
+    return { ...this._response };
+  }
 }
 
 export type HeaderOperation = "set" | "add" | "remove";

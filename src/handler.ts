@@ -7,7 +7,10 @@ import { Decision } from "./decision.js";
 import {
   EventType,
   agentResponseToDict,
+  createGuardrailResponse,
+  guardrailResponseToDict,
   parseConfigureEvent,
+  parseGuardrailInspectEvent,
   parseRequestBodyChunkEvent,
   parseRequestCompleteEvent,
   parseRequestHeadersEvent,
@@ -49,6 +52,8 @@ export class AgentHandler {
           return await this._handleResponseBodyChunk(payload);
         case EventType.REQUEST_COMPLETE:
           return await this._handleRequestComplete(payload);
+        case EventType.GUARDRAIL_INSPECT:
+          return await this._handleGuardrailInspect(payload);
         default:
           this._logger("warn", `Unknown event type: ${eventType}`);
           return agentResponseToDict(Decision.allow().build());
@@ -201,5 +206,15 @@ export class AgentHandler {
     }
 
     return { success: true };
+  }
+
+  private async _handleGuardrailInspect(
+    payload: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const event = parseGuardrailInspectEvent(payload);
+    const response = this._agent.onGuardrailInspect
+      ? await this._agent.onGuardrailInspect(event)
+      : createGuardrailResponse();
+    return guardrailResponseToDict(response);
   }
 }

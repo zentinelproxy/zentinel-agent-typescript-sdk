@@ -36,3 +36,16 @@ export { AgentRunner, RunnerConfig, runAgent, parseCliArgs } from "./runner.js";
 
 // Protocol (for advanced usage)
 export { PROTOCOL_VERSION } from "./protocol.js";
+
+// Guardrail types
+export {
+  GuardrailInspectEvent,
+  GuardrailInspectionType,
+  GuardrailResponse,
+  GuardrailResponseBuilder,
+  GuardrailDetection,
+  DetectionSeverity,
+  TextSpan,
+  createGuardrailDetection,
+  createGuardrailResponse,
+} from "./protocol.js";
