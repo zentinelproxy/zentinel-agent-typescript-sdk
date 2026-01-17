@@ -1,7 +1,7 @@
 {
   "name": "sentinel-agent-sdk",
-  "version": "0.1.0",
-  "description": "Sentinel Agent SDK for TypeScript",
+  "version": "0.2.0",
+  "description": "Sentinel Agent SDK for TypeScript - v1 and v2 protocol support",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,6 +9,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./v2": {
+      "import": "./dist/v2/index.js",
+      "types": "./dist/v2/index.d.ts"
     }
   },
   "files": [
@@ -29,12 +33,16 @@
     "agent",
     "sdk",
     "security",
-    "proxy"
+    "proxy",
+    "grpc"
   ],
   "author": "",
   "license": "MIT",
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.9.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
