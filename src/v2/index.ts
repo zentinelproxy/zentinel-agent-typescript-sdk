@@ -1,5 +1,5 @@
 /**
- * Sentinel Agent SDK v2 Protocol support.
+ * Zentinel Agent SDK v2 Protocol support.
  *
  * This module provides v2 protocol support including:
  * - AgentV2 interface with capability reporting
@@ -10,8 +10,8 @@
  *
  * @example
  * ```typescript
- * import { Decision, Request } from "sentinel-agent-sdk";
- * import { AgentV2, AgentCapabilities, AgentRunnerV2 } from "sentinel-agent-sdk/v2";
+ * import { Decision, Request } from "zentinel-agent-sdk";
+ * import { AgentV2, AgentCapabilities, AgentRunnerV2 } from "zentinel-agent-sdk/v2";
  *
  * class MyAgent implements AgentV2 {
  *   get name(): string {

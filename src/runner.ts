@@ -20,7 +20,7 @@ export interface RunnerConfig {
 
 function createDefaultConfig(name: string): RunnerConfig {
   return {
-    socketPath: "/tmp/sentinel-agent.sock",
+    socketPath: "/tmp/zentinel-agent.sock",
     name,
     jsonLogs: false,
     logLevel: "info",
@@ -220,7 +220,7 @@ export function parseCliArgs(): ParsedArgs {
     options: {
       socket: {
         type: "string",
-        default: "/tmp/sentinel-agent.sock",
+        default: "/tmp/zentinel-agent.sock",
       },
       "json-logs": {
         type: "boolean",

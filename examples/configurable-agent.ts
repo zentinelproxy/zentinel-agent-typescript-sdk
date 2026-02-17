@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Configurable Sentinel agent example.
+ * Configurable Zentinel agent example.
  *
  * This example demonstrates an agent with typed configuration that:
  * - Accepts rate limit configuration from the proxy

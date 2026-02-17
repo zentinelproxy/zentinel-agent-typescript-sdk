@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * V2 Sentinel agent example.
+ * V2 Zentinel agent example.
  *
  * This example demonstrates a v2 agent with:
  * - Capability negotiation
@@ -104,7 +104,7 @@ class V2Agent implements AgentV2 {
 // Run the v2 agent
 const runner = new AgentRunnerV2(new V2Agent())
   .withName("v2-agent")
-  .withUds("/tmp/sentinel-v2-agent.sock")
+  .withUds("/tmp/zentinel-v2-agent.sock")
   .withLogLevel("info");
 
 runner.run().catch((error) => {

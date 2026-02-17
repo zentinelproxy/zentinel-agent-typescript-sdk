@@ -1,10 +1,10 @@
-# Sentinel Agent TypeScript SDK
+# Zentinel Agent TypeScript SDK
 
-A TypeScript SDK for building agents that integrate with the [Sentinel](https://github.com/raskell-io/sentinel) reverse proxy.
+A TypeScript SDK for building agents that integrate with the [Zentinel](https://github.com/zentinelproxy/zentinel) reverse proxy.
 
 ## Overview
 
-Sentinel agents are external processors that can inspect and modify HTTP traffic passing through the Sentinel proxy. They communicate with Sentinel over Unix sockets using a length-prefixed JSON protocol.
+Zentinel agents are external processors that can inspect and modify HTTP traffic passing through the Zentinel proxy. They communicate with Zentinel over Unix sockets using a length-prefixed JSON protocol.
 
 Agents can:
 
@@ -17,20 +17,20 @@ Agents can:
 ## Installation
 
 ```bash
-npm install @sentinel-agent/sdk
+npm install @zentinel-agent/sdk
 ```
 
 Or with other package managers:
 
 ```bash
-yarn add @sentinel-agent/sdk
-pnpm add @sentinel-agent/sdk
+yarn add @zentinel-agent/sdk
+pnpm add @zentinel-agent/sdk
 ```
 
 ## Quick Example
 
 ```typescript
-import { Agent, Decision, Request, runAgent } from '@sentinel-agent/sdk';
+import { Agent, Decision, Request, runAgent } from '@zentinel-agent/sdk';
 
 class MyAgent implements Agent {
   name = 'my-agent';
@@ -60,13 +60,13 @@ npx ts-node my-agent.ts --socket /tmp/my-agent.sock
 - [Quickstart Guide](quickstart.md) - Get up and running in 5 minutes
 - [API Reference](api.md) - Complete API documentation
 - [Examples](examples.md) - Common patterns and use cases
-- [Sentinel Configuration](configuration.md) - How to configure Sentinel to use agents
+- [Zentinel Configuration](configuration.md) - How to configure Zentinel to use agents
 
 ## Architecture
 
 ```
 ┌─────────────┐     ┌──────────────┐     ┌──────────────┐
-│   Client    │────▶│   Sentinel   │────▶│   Upstream   │
+│   Client    │────▶│   Zentinel   │────▶│   Upstream   │
 └─────────────┘     └──────────────┘     └──────────────┘
                            │
                            │ Unix Socket
@@ -77,21 +77,21 @@ npx ts-node my-agent.ts --socket /tmp/my-agent.sock
                     └──────────────┘
 ```
 
-1. Client sends request to Sentinel
-2. Sentinel forwards request headers to agent via Unix socket
+1. Client sends request to Zentinel
+2. Zentinel forwards request headers to agent via Unix socket
 3. Agent returns a decision (allow, block, redirect)
-4. Sentinel applies the decision and forwards to upstream (if allowed)
+4. Zentinel applies the decision and forwards to upstream (if allowed)
 5. Agent can also process response headers
 
 ## Protocol
 
-The SDK implements version 1 of the Sentinel Agent Protocol:
+The SDK implements version 1 of the Zentinel Agent Protocol:
 
 - **Transport**: Unix domain sockets (UDS) or gRPC
 - **Encoding**: Length-prefixed JSON (4-byte big-endian length prefix) for UDS
 - **Max message size**: 10MB
 
-For the canonical protocol specification, including wire format details, event types, and architectural diagrams, see the [Sentinel Agent Protocol documentation](https://github.com/raskell-io/sentinel/tree/main/crates/agent-protocol).
+For the canonical protocol specification, including wire format details, event types, and architectural diagrams, see the [Zentinel Agent Protocol documentation](https://github.com/zentinelproxy/zentinel/tree/main/crates/agent-protocol).
 
 ## License
 

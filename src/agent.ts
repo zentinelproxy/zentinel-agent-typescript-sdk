@@ -12,10 +12,10 @@ import { Request } from "./request.js";
 import { Response } from "./response.js";
 
 /**
- * Base interface for Sentinel agents.
+ * Base interface for Zentinel agents.
  *
  * Implement this interface to create a custom agent that can process
- * HTTP requests and responses in the Sentinel proxy pipeline.
+ * HTTP requests and responses in the Zentinel proxy pipeline.
  *
  * @example
  * ```typescript

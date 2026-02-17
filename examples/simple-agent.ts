@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Simple Sentinel agent example.
+ * Simple Zentinel agent example.
  *
  * This example demonstrates a basic agent that:
  * - Blocks requests to /admin paths

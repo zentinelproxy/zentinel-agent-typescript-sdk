@@ -41,7 +41,7 @@ function createDefaultConfig(name: string): V2RunnerConfig {
   return {
     transport: {
       type: "uds",
-      udsPath: "/tmp/sentinel-agent.sock",
+      udsPath: "/tmp/zentinel-agent.sock",
     },
     name,
     jsonLogs: false,
@@ -75,7 +75,7 @@ function createLogger(config: V2RunnerConfig): (level: LogLevel, message: string
 }
 
 /**
- * Runner for v2 Sentinel agents.
+ * Runner for v2 Zentinel agents.
  *
  * Handles CLI parsing, logging setup, and server lifecycle for v2 protocol.
  * Supports both gRPC and UDS transports.
@@ -377,7 +377,7 @@ export function parseV2CliArgs(): ParsedV2Args {
       },
       socket: {
         type: "string",
-        default: "/tmp/sentinel-agent.sock",
+        default: "/tmp/zentinel-agent.sock",
       },
       "json-logs": {
         type: "boolean",

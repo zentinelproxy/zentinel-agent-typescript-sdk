@@ -2,7 +2,7 @@
  * Protocol conformance tests.
  *
  * These tests verify that the TypeScript SDK serializes data in a format
- * compatible with the Rust Sentinel proxy (using serde JSON).
+ * compatible with the Rust Zentinel proxy (using serde JSON).
  */
 
 import { describe, it, expect } from "vitest";

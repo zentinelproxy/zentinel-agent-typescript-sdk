@@ -2,10 +2,10 @@
 
 ## Agent
 
-The interface for all Sentinel agents.
+The interface for all Zentinel agents.
 
 ```typescript
-import { Agent } from '@sentinel-agent/sdk';
+import { Agent } from '@zentinel-agent/sdk';
 ```
 
 ### Properties
@@ -44,7 +44,7 @@ Called when request headers are received. This is the main entry point for reque
 onRequestBody?(request: Request): Promise<Decision>;
 ```
 
-Called when the request body is available (requires body inspection to be enabled in Sentinel).
+Called when the request body is available (requires body inspection to be enabled in Zentinel).
 
 **Default**: Returns `Decision.allow()`
 
@@ -83,7 +83,7 @@ Called when request processing is complete. Use for logging or metrics.
 A generic agent class with typed configuration support.
 
 ```typescript
-import { ConfigurableAgent } from '@sentinel-agent/sdk';
+import { ConfigurableAgent } from '@zentinel-agent/sdk';
 
 interface MyConfig {
   rateLimit: number;
@@ -142,7 +142,7 @@ Called after new configuration is applied.
 Fluent builder for agent decisions.
 
 ```typescript
-import { Decision } from '@sentinel-agent/sdk';
+import { Decision } from '@zentinel-agent/sdk';
 ```
 
 ### Factory Methods
@@ -364,7 +364,7 @@ Decision.allow().withResponseBodyMutation('modified body', 0);
 Represents an incoming HTTP request.
 
 ```typescript
-import { Request } from '@sentinel-agent/sdk';
+import { Request } from '@zentinel-agent/sdk';
 ```
 
 ### Properties
@@ -489,7 +489,7 @@ request.timestamp      // Request timestamp
 Represents an HTTP response from the upstream.
 
 ```typescript
-import { Response } from '@sentinel-agent/sdk';
+import { Response } from '@zentinel-agent/sdk';
 ```
 
 ### Properties
@@ -557,7 +557,7 @@ Check if status is 4xx or 5xx.
 Runner for starting and managing an agent.
 
 ```typescript
-import { AgentRunner } from '@sentinel-agent/sdk';
+import { AgentRunner } from '@zentinel-agent/sdk';
 ```
 
 ### Usage
@@ -595,7 +595,7 @@ Set the log level (debug, info, warn, error).
 Convenience function to run an agent with CLI argument parsing.
 
 ```typescript
-import { runAgent } from '@sentinel-agent/sdk';
+import { runAgent } from '@zentinel-agent/sdk';
 
 runAgent(new MyAgent());
 ```

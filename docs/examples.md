@@ -1,13 +1,13 @@
 # Examples
 
-Common patterns and use cases for Sentinel agents.
+Common patterns and use cases for Zentinel agents.
 
 ## Basic Request Blocking
 
 Block requests based on path patterns:
 
 ```typescript
-import { Agent, Decision, Request, runAgent } from '@sentinel-agent/sdk';
+import { Agent, Decision, Request, runAgent } from '@zentinel-agent/sdk';
 
 class BlockingAgent implements Agent {
   name = 'blocking-agent';
@@ -32,7 +32,7 @@ class BlockingAgent implements Agent {
 Block or allow requests based on client IP:
 
 ```typescript
-import { Agent, Decision, Request, runAgent } from '@sentinel-agent/sdk';
+import { Agent, Decision, Request, runAgent } from '@zentinel-agent/sdk';
 
 class IPFilterAgent implements Agent {
   name = 'ip-filter';
@@ -58,7 +58,7 @@ class IPFilterAgent implements Agent {
 Validate JWT tokens:
 
 ```typescript
-import { Agent, Decision, Request, runAgent } from '@sentinel-agent/sdk';
+import { Agent, Decision, Request, runAgent } from '@zentinel-agent/sdk';
 import jwt from 'jsonwebtoken';
 
 class AuthAgent implements Agent {
@@ -105,7 +105,7 @@ class AuthAgent implements Agent {
 Simple in-memory rate limiting:
 
 ```typescript
-import { Agent, Decision, Request, runAgent } from '@sentinel-agent/sdk';
+import { Agent, Decision, Request, runAgent } from '@zentinel-agent/sdk';
 
 class RateLimitAgent implements Agent {
   name = 'rate-limit';
@@ -145,7 +145,7 @@ class RateLimitAgent implements Agent {
 Add, remove, or modify headers:
 
 ```typescript
-import { Agent, Decision, Request, Response, runAgent } from '@sentinel-agent/sdk';
+import { Agent, Decision, Request, Response, runAgent } from '@zentinel-agent/sdk';
 
 class HeaderAgent implements Agent {
   name = 'header-agent';
@@ -153,7 +153,7 @@ class HeaderAgent implements Agent {
   async onRequest(request: Request): Promise<Decision> {
     return Decision.allow()
       // Add headers for upstream
-      .addRequestHeader('X-Forwarded-By', 'sentinel')
+      .addRequestHeader('X-Forwarded-By', 'zentinel')
       .addRequestHeader('X-Request-ID', request.correlationId)
       // Remove sensitive headers
       .removeRequestHeader('X-Internal-Token');
@@ -177,7 +177,7 @@ class HeaderAgent implements Agent {
 Agent with runtime configuration:
 
 ```typescript
-import { ConfigurableAgent, Decision, Request, runAgent } from '@sentinel-agent/sdk';
+import { ConfigurableAgent, Decision, Request, runAgent } from '@zentinel-agent/sdk';
 
 interface Config {
   enabled: boolean;
@@ -225,7 +225,7 @@ class ConfigurableBlocker extends ConfigurableAgent<Config> {
 Log all requests with timing:
 
 ```typescript
-import { Agent, Decision, Request, runAgent } from '@sentinel-agent/sdk';
+import { Agent, Decision, Request, runAgent } from '@zentinel-agent/sdk';
 
 class LoggingAgent implements Agent {
   name = 'logging-agent';
@@ -255,7 +255,7 @@ class LoggingAgent implements Agent {
 Validate request content types:
 
 ```typescript
-import { Agent, Decision, Request, runAgent } from '@sentinel-agent/sdk';
+import { Agent, Decision, Request, runAgent } from '@zentinel-agent/sdk';
 
 class ContentTypeAgent implements Agent {
   name = 'content-type-validator';
@@ -296,7 +296,7 @@ class ContentTypeAgent implements Agent {
 Redirect requests to different URLs:
 
 ```typescript
-import { Agent, Decision, Request, runAgent } from '@sentinel-agent/sdk';
+import { Agent, Decision, Request, runAgent } from '@zentinel-agent/sdk';
 
 class RedirectAgent implements Agent {
   name = 'redirect-agent';
@@ -329,7 +329,7 @@ class RedirectAgent implements Agent {
 Agent that performs multiple validations:
 
 ```typescript
-import { Agent, Decision, Request, runAgent } from '@sentinel-agent/sdk';
+import { Agent, Decision, Request, runAgent } from '@zentinel-agent/sdk';
 
 class SecurityAgent implements Agent {
   name = 'security-agent';

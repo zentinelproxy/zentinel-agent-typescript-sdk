@@ -1,14 +1,14 @@
 /**
- * Sentinel Agent SDK for TypeScript
+ * Zentinel Agent SDK for TypeScript
  *
- * A TypeScript SDK for building Sentinel agents that can process
- * HTTP requests and responses in the Sentinel proxy pipeline.
+ * A TypeScript SDK for building Zentinel agents that can process
+ * HTTP requests and responses in the Zentinel proxy pipeline.
  *
  * ## V1 Protocol (Default)
  *
  * @example
  * ```typescript
- * import { Agent, Decision, Request, runAgent } from "sentinel-agent-sdk";
+ * import { Agent, Decision, Request, runAgent } from "zentinel-agent-sdk";
  *
  * class MyAgent implements Agent {
  *   get name(): string {
@@ -33,8 +33,8 @@
  *
  * @example
  * ```typescript
- * import { Decision, Request } from "sentinel-agent-sdk";
- * import { AgentV2, AgentCapabilities, AgentRunnerV2 } from "sentinel-agent-sdk/v2";
+ * import { Decision, Request } from "zentinel-agent-sdk";
+ * import { AgentV2, AgentCapabilities, AgentRunnerV2 } from "zentinel-agent-sdk/v2";
  *
  * class MyAgent implements AgentV2 {
  *   get name(): string {

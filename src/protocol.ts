@@ -1,5 +1,5 @@
 /**
- * Protocol definitions for Sentinel agent communication.
+ * Protocol definitions for Zentinel agent communication.
  */
 
 export const PROTOCOL_VERSION = 1;

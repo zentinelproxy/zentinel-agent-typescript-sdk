@@ -1,24 +1,24 @@
-# Getting Started with Sentinel Agent TypeScript SDK
+# Getting Started with Zentinel Agent TypeScript SDK
 
-This guide will walk you through creating your first Sentinel agent in TypeScript.
+This guide will walk you through creating your first Zentinel agent in TypeScript.
 
 ## Prerequisites
 
 - Node.js 18 or later
-- A running Sentinel proxy instance (or just the SDK for development)
+- A running Zentinel proxy instance (or just the SDK for development)
 
 ## Installation
 
 ```bash
-npm install sentinel-agent-sdk
+npm install zentinel-agent-sdk
 ```
 
 Or with other package managers:
 
 ```bash
-yarn add sentinel-agent-sdk
-pnpm add sentinel-agent-sdk
-bun add sentinel-agent-sdk
+yarn add zentinel-agent-sdk
+pnpm add zentinel-agent-sdk
+bun add zentinel-agent-sdk
 ```
 
 ## Your First Agent
@@ -26,7 +26,7 @@ bun add sentinel-agent-sdk
 Create a new file `my-agent.ts`:
 
 ```typescript
-import { Agent, Decision, Request, runAgent } from "sentinel-agent-sdk";
+import { Agent, Decision, Request, runAgent } from "zentinel-agent-sdk";
 
 class MyAgent implements Agent {
   get name(): string {
@@ -60,14 +60,14 @@ npx tsc my-agent.ts
 node my-agent.js --socket /tmp/my-agent.sock
 ```
 
-Your agent is now listening on `/tmp/my-agent.sock` and ready to receive events from Sentinel.
+Your agent is now listening on `/tmp/my-agent.sock` and ready to receive events from Zentinel.
 
 ## Understanding the Agent Interface
 
 The `Agent` interface defines the hooks you can implement:
 
 ```typescript
-import { Agent, Decision, Request, Response } from "sentinel-agent-sdk";
+import { Agent, Decision, Request, Response } from "zentinel-agent-sdk";
 
 class MyAgent implements Agent {
   get name(): string {
@@ -210,7 +210,7 @@ async onResponse(request: Request, response: Response): Promise<Decision> {
 For agents with configuration, use `ConfigurableAgent`:
 
 ```typescript
-import { ConfigurableAgent, Decision, Request, runAgent } from "sentinel-agent-sdk";
+import { ConfigurableAgent, Decision, Request, runAgent } from "zentinel-agent-sdk";
 
 interface RateLimitConfig {
   requestsPerMinute: number;
@@ -248,9 +248,9 @@ class RateLimitAgent implements ConfigurableAgent<RateLimitConfig> {
 runAgent(new RateLimitAgent());
 ```
 
-## Connecting to Sentinel
+## Connecting to Zentinel
 
-Configure Sentinel to use your agent:
+Configure Zentinel to use your agent:
 
 ```kdl
 agents {
@@ -297,7 +297,7 @@ npx tsx my-agent.ts \
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--socket PATH` | Unix socket path | `/tmp/sentinel-agent.sock` |
+| `--socket PATH` | Unix socket path | `/tmp/zentinel-agent.sock` |
 | `--log-level LEVEL` | debug, info, warn, error | `info` |
 | `--json-logs` | Output logs as JSON | disabled |
 
@@ -306,7 +306,7 @@ npx tsx my-agent.ts \
 For more control, use `AgentRunner` directly:
 
 ```typescript
-import { AgentRunner } from "sentinel-agent-sdk";
+import { AgentRunner } from "zentinel-agent-sdk";
 
 const runner = new AgentRunner(new MyAgent())
   .withSocket("/tmp/my-agent.sock")
@@ -372,7 +372,7 @@ Write tests using your preferred testing framework:
 ```typescript
 import { describe, it, expect } from "vitest";
 import { MyAgent } from "./my-agent";
-import { Request } from "sentinel-agent-sdk";
+import { Request } from "zentinel-agent-sdk";
 
 describe("MyAgent", () => {
   it("blocks admin paths", async () => {
@@ -409,7 +409,7 @@ For a new project, here's a recommended `package.json`:
 
 ```json
 {
-  "name": "my-sentinel-agent",
+  "name": "my-zentinel-agent",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
@@ -418,7 +418,7 @@ For a new project, here's a recommended `package.json`:
     "test": "vitest"
   },
   "dependencies": {
-    "sentinel-agent-sdk": "^0.1.0"
+    "zentinel-agent-sdk": "^0.1.0"
   },
   "devDependencies": {
     "tsx": "^4.0.0",
@@ -449,9 +449,9 @@ And `tsconfig.json`:
 
 - Read the [API Reference](api.md) for complete documentation
 - Browse [Examples](../examples/) for common patterns
-- See the [Configuration](configuration.md) guide for Sentinel setup
+- See the [Configuration](configuration.md) guide for Zentinel setup
 
 ## Need Help?
 
-- [GitHub Issues](https://github.com/raskell-io/sentinel-agent-typescript-sdk/issues)
-- [Sentinel Documentation](https://sentinel.raskell.io/docs)
+- [GitHub Issues](https://github.com/zentinelproxy/zentinel-agent-typescript-sdk/issues)
+- [Zentinel Documentation](https://zentinelproxy.io/docs)

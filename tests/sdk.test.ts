@@ -1,5 +1,5 @@
 /**
- * Unit tests for the Sentinel Agent SDK.
+ * Unit tests for the Zentinel Agent SDK.
  *
  * Tests the core components: Decision, Request, Response, and Agent.
  */

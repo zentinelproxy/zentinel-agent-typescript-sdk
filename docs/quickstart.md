@@ -1,11 +1,11 @@
 # Quickstart Guide
 
-This guide will help you create your first Sentinel agent in under 5 minutes.
+This guide will help you create your first Zentinel agent in under 5 minutes.
 
 ## Prerequisites
 
 - Node.js 20+
-- Sentinel proxy (for testing with real traffic)
+- Zentinel proxy (for testing with real traffic)
 
 ## Step 1: Create a New Project
 
@@ -13,7 +13,7 @@ This guide will help you create your first Sentinel agent in under 5 minutes.
 mkdir my-agent
 cd my-agent
 npm init -y
-npm install @sentinel-agent/sdk typescript ts-node @types/node
+npm install @zentinel-agent/sdk typescript ts-node @types/node
 ```
 
 ## Step 2: Configure TypeScript
@@ -37,7 +37,7 @@ Create `tsconfig.json`:
 Create `src/agent.ts`:
 
 ```typescript
-import { Agent, Decision, Request, runAgent } from '@sentinel-agent/sdk';
+import { Agent, Decision, Request, runAgent } from '@zentinel-agent/sdk';
 
 class MyAgent implements Agent {
   name = 'my-agent';
@@ -74,9 +74,9 @@ You should see:
 [my-agent] INFO: Agent 'my-agent' listening on /tmp/my-agent.sock
 ```
 
-## Step 5: Configure Sentinel
+## Step 5: Configure Zentinel
 
-Add the agent to your Sentinel configuration (`sentinel.kdl`):
+Add the agent to your Zentinel configuration (`zentinel.kdl`):
 
 ```kdl
 agents {
@@ -110,7 +110,7 @@ routes {
 
 ## Step 6: Test It
 
-With Sentinel running, send a test request:
+With Zentinel running, send a test request:
 
 ```bash
 # This should pass through
@@ -126,7 +126,7 @@ The `runAgent` function supports these CLI arguments:
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--socket PATH` | Unix socket path | `/tmp/sentinel-agent.sock` |
+| `--socket PATH` | Unix socket path | `/tmp/zentinel-agent.sock` |
 | `--log-level LEVEL` | Log level (debug, info, warn, error) | `info` |
 | `--json-logs` | Enable JSON log format | disabled |
 
@@ -134,4 +134,4 @@ The `runAgent` function supports these CLI arguments:
 
 - Read the [API Reference](api.md) for complete documentation
 - See [Examples](examples.md) for common patterns
-- Learn about [Sentinel Configuration](configuration.md) options
+- Learn about [Zentinel Configuration](configuration.md) options
