@@ -12,6 +12,7 @@ Agents can:
 - **Block requests** - Return custom error responses (403, 401, 429, etc.)
 - **Redirect requests** - Send clients to different URLs
 - **Modify headers** - Add, remove, or modify request/response headers
+- **Inspect WebSocket frames** - Filter or block individual WebSocket messages
 - **Add audit metadata** - Attach tags, rule IDs, and custom data for logging
 
 ## Installation

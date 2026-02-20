@@ -95,6 +95,11 @@ class MyAgent implements Agent {
     return Decision.allow();
   }
 
+  async onWebSocketFrame(event: WebSocketFrameEvent): Promise<Decision> {
+    // Called when a WebSocket frame is received (if websocket feature enabled)
+    return Decision.allow();
+  }
+
   async onRequestComplete(
     request: Request,
     status: number,

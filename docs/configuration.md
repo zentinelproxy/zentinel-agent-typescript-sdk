@@ -47,6 +47,7 @@ Available events:
 | `request_body` | When request body is available |
 | `response_headers` | When response headers are received |
 | `response_body` | When response body is available |
+| `websocket_frame` | When a WebSocket frame is received |
 
 ## Filter Definition
 

@@ -324,6 +324,45 @@ class RedirectAgent implements Agent {
 }
 ```
 
+## WebSocket Frame Filtering
+
+Inspect and filter WebSocket traffic:
+
+```typescript
+import { Agent, Decision, Request, runAgent, WebSocketFrameEvent } from '@zentinel-agent/sdk';
+
+class WebSocketFilterAgent implements Agent {
+  name = 'websocket-filter';
+
+  private blockedPatterns = [/DROP\s+TABLE/i, /eval\s*\(/i];
+
+  async onRequest(request: Request): Promise<Decision> {
+    return Decision.allow();
+  }
+
+  async onWebSocketFrame(event: WebSocketFrameEvent): Promise<Decision> {
+    // Only inspect text frames (opcode 1)
+    if (event.opcode !== 1) {
+      return Decision.allow();
+    }
+
+    const message = event.data.toString('utf-8');
+
+    // Check for blocked patterns
+    for (const pattern of this.blockedPatterns) {
+      if (pattern.test(message)) {
+        return Decision.block(403)
+          .withBody('WebSocket message blocked')
+          .withTag('websocket-blocked')
+          .withMetadata('direction', event.direction);
+      }
+    }
+
+    return Decision.allow();
+  }
+}
+```
+
 ## Combining Multiple Checks
 
 Agent that performs multiple validations:

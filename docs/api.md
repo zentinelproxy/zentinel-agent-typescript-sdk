@@ -68,6 +68,23 @@ Called when the response body is available (requires body inspection to be enabl
 
 **Default**: Returns `Decision.allow()`
 
+#### `onWebSocketFrame`
+
+```typescript
+onWebSocketFrame?(event: WebSocketFrameEvent): Promise<Decision>;
+```
+
+Called when a WebSocket frame is received (requires `websocket` feature enabled in v2 capabilities). Override to inspect or filter WebSocket traffic.
+
+The `WebSocketFrameEvent` contains:
+- `correlationId` — Correlation ID for the WebSocket connection
+- `opcode` — Frame type (1 = text, 2 = binary, etc.)
+- `data` — Frame payload as a `Buffer`
+- `direction` — `"client_to_server"` or `"server_to_client"`
+- `frameIndex` — Index of the frame in the connection
+
+**Default**: Returns `Decision.allow()`
+
 #### `onRequestComplete`
 
 ```typescript

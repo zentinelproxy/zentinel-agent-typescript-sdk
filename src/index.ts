@@ -71,6 +71,9 @@ export { AgentRunner, RunnerConfig, runAgent, parseCliArgs } from "./runner.js";
 // Protocol (for advanced usage)
 export { PROTOCOL_VERSION } from "./protocol.js";
 
+// WebSocket types
+export { WebSocketFrameEvent } from "./protocol.js";
+
 // Guardrail types
 export {
   GuardrailInspectEvent,
