@@ -13,8 +13,10 @@ import {
   RequestHeadersEvent,
   RequestMetadata,
   ResponseHeadersEvent,
+  WebSocketFrameEvent,
   PROTOCOL_VERSION,
 } from "../src/protocol.js";
+import { AgentHandler } from "../src/handler.js";
 
 // Helper to create a RequestHeadersEvent
 function createRequestEvent(overrides: Partial<{
@@ -807,5 +809,76 @@ describe("ConfigurableAgent", () => {
     await agent.onConfigure({ threshold: 200 });
 
     expect(agent.config).toEqual({ enabled: true, threshold: 200 });
+  });
+});
+
+describe("WebSocket frame handling", () => {
+  it("onWebSocketFrame returns allow by default", async () => {
+    class TestAgent extends ConfigurableAgent<{}> {
+      constructor() {
+        super({});
+      }
+      get name() {
+        return "test-agent";
+      }
+    }
+
+    const agent = new TestAgent();
+    const event: WebSocketFrameEvent = {
+      correlationId: "ws-1",
+      opcode: 1,
+      data: Buffer.from("hello"),
+      direction: "client_to_server",
+      frameIndex: 0,
+    };
+
+    const decision = await agent.onWebSocketFrame(event);
+    expect(decision.build().decision).toBe("allow");
+  });
+
+  it("agent can return block decision for WebSocket frames", async () => {
+    class BlockingWsAgent implements Agent {
+      get name() {
+        return "blocking-ws-agent";
+      }
+
+      async onWebSocketFrame(event: WebSocketFrameEvent): Promise<Decision> {
+        if (event.data.toString().includes("blocked")) {
+          return Decision.block(403).withBody("WebSocket frame blocked");
+        }
+        return Decision.allow();
+      }
+    }
+
+    const agent = new BlockingWsAgent();
+    const handler = new AgentHandler(agent);
+
+    // Allowed frame
+    const allowResult = await handler.handleEvent({
+      event_type: "websocket_frame",
+      payload: {
+        correlation_id: "ws-1",
+        opcode: 1,
+        data: Buffer.from("hello").toString("base64"),
+        direction: "client_to_server",
+        frame_index: 0,
+      },
+    });
+    expect(allowResult.decision).toBe("allow");
+
+    // Blocked frame
+    const blockResult = await handler.handleEvent({
+      event_type: "websocket_frame",
+      payload: {
+        correlation_id: "ws-2",
+        opcode: 1,
+        data: Buffer.from("blocked").toString("base64"),
+        direction: "client_to_server",
+        frame_index: 0,
+      },
+    });
+    expect(blockResult.decision).toEqual({
+      block: { status: 403, body: "WebSocket frame blocked" },
+    });
   });
 });

@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import { Decision } from "../src/decision.js";
 import { Request } from "../src/request.js";
+import { WebSocketFrameEvent } from "../src/protocol.js";
 import { AgentV2 } from "../src/v2/agent.js";
 import { AgentHandlerV2 } from "../src/v2/handler.js";
 import { AgentCapabilities } from "../src/v2/types.js";
@@ -34,6 +35,13 @@ class TestAgent implements AgentV2 {
   async onRequest(request: Request): Promise<Decision> {
     if (request.uri === "/block") {
       return Decision.block(403).withBody("Blocked");
+    }
+    return Decision.allow();
+  }
+
+  async onWebSocketFrame(event: WebSocketFrameEvent): Promise<Decision> {
+    if (event.data.toString().includes("deny")) {
+      return Decision.block(403).withBody("WebSocket denied");
     }
     return Decision.allow();
   }
@@ -182,6 +190,38 @@ describe("gRPC ProcessEvent (unary)", () => {
     expect(response.response.decision).toBe("block");
     expect(response.response.block.status).toBe(403);
     expect(response.response.block.body).toBe("Blocked");
+  });
+
+  it("returns allow for websocket_frame", async () => {
+    const response = await processEvent({
+      websocket_frame: {
+        correlation_id: "ws-1",
+        client_to_server: true,
+        frame_type: 1,
+        payload: Buffer.from("hello"),
+      },
+    });
+
+    expect(response.message).toBe("response");
+    expect(response.response.correlation_id).toBe("ws-1");
+    expect(response.response.decision).toBe("allow");
+  });
+
+  it("returns block for websocket_frame with denied content", async () => {
+    const response = await processEvent({
+      websocket_frame: {
+        correlation_id: "ws-2",
+        client_to_server: true,
+        frame_type: 1,
+        payload: Buffer.from("deny this"),
+      },
+    });
+
+    expect(response.message).toBe("response");
+    expect(response.response.correlation_id).toBe("ws-2");
+    expect(response.response.decision).toBe("block");
+    expect(response.response.block.status).toBe(403);
+    expect(response.response.block.body).toBe("WebSocket denied");
   });
 
   it("handles ping", async () => {

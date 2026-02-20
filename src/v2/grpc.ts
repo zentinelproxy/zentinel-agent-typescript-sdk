@@ -190,6 +190,22 @@ export function protoEventToJson(msg: any): Record<string, unknown> | null {
       };
     }
 
+    case "websocket_frame": {
+      const ev = msg.websocket_frame;
+      return {
+        event_type: "websocket_frame",
+        payload: {
+          correlation_id: ev.correlation_id || "",
+          opcode: ev.frame_type || 0,
+          data: ev.payload
+            ? (ev.payload as Buffer).toString("base64")
+            : "",
+          direction: ev.client_to_server ? "client_to_server" : "server_to_client",
+          frame_index: 0,
+        },
+      };
+    }
+
     case "configure": {
       const ev = msg.configure;
       let config: Record<string, unknown> = {};

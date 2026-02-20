@@ -6,6 +6,7 @@ import { Decision } from "./decision.js";
 import {
   GuardrailInspectEvent,
   GuardrailResponse,
+  WebSocketFrameEvent,
   createGuardrailResponse,
 } from "./protocol.js";
 import { Request } from "./request.js";
@@ -106,6 +107,17 @@ export interface Agent {
    * @param durationMs - The request duration in milliseconds.
    */
   onRequestComplete?(request: Request, status: number, durationMs: number): Promise<void>;
+
+  /**
+   * Process a WebSocket frame.
+   *
+   * Called when a WebSocket frame is received (if websocket feature enabled).
+   * Override to inspect or filter WebSocket traffic.
+   *
+   * @param event - The WebSocket frame event.
+   * @returns A Decision indicating how to handle the frame.
+   */
+  onWebSocketFrame?(event: WebSocketFrameEvent): Promise<Decision>;
 
   /**
    * Inspect content for guardrail violations.
@@ -235,6 +247,10 @@ export abstract class ConfigurableAgent<T> implements Agent {
     _durationMs: number
   ): Promise<void> {
     // Default implementation does nothing
+  }
+
+  async onWebSocketFrame(_event: WebSocketFrameEvent): Promise<Decision> {
+    return Decision.allow();
   }
 
   async onGuardrailInspect(_event: GuardrailInspectEvent): Promise<GuardrailResponse> {

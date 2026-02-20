@@ -16,6 +16,7 @@ import {
   parseRequestHeadersEvent,
   parseResponseBodyChunkEvent,
   parseResponseHeadersEvent,
+  parseWebSocketFrameEvent,
   ResponseHeadersEvent,
 } from "./protocol.js";
 import { Request } from "./request.js";
@@ -52,6 +53,8 @@ export class AgentHandler {
           return await this._handleResponseBodyChunk(payload);
         case EventType.REQUEST_COMPLETE:
           return await this._handleRequestComplete(payload);
+        case EventType.WEBSOCKET_FRAME:
+          return await this._handleWebSocketFrame(payload);
         case EventType.GUARDRAIL_INSPECT:
           return await this._handleGuardrailInspect(payload);
         default:
@@ -206,6 +209,16 @@ export class AgentHandler {
     }
 
     return { success: true };
+  }
+
+  private async _handleWebSocketFrame(
+    payload: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    const event = parseWebSocketFrameEvent(payload);
+    const decision = this._agent.onWebSocketFrame
+      ? await this._agent.onWebSocketFrame(event)
+      : Decision.allow();
+    return agentResponseToDict(decision.build());
   }
 
   private async _handleGuardrailInspect(
