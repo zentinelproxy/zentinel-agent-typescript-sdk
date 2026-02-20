@@ -43,6 +43,9 @@ export { AgentV2, isAgentV2 } from "./agent.js";
 // Handler
 export { AgentHandlerV2 } from "./handler.js";
 
+// gRPC transport
+export { createGrpcServer, startGrpcServer } from "./grpc.js";
+
 // Runner
 export {
   AgentRunnerV2,

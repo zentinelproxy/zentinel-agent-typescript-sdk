@@ -1,6 +1,6 @@
 {
   "name": "zentinel-agent-sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Zentinel Agent SDK for TypeScript - v1 and v2 protocol support",
   "type": "module",
   "main": "dist/index.js",
@@ -26,6 +26,7 @@
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
+    "postbuild": "mkdir -p dist/v2/proto && cp src/v2/proto/*.proto dist/v2/proto/",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -42,7 +43,8 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@grpc/grpc-js": "^1.9.0"
+    "@grpc/grpc-js": "^1.9.0",
+    "@grpc/proto-loader": "^0.7.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

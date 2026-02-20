@@ -7,8 +7,11 @@ import * as net from "node:net";
 import * as path from "node:path";
 import { parseArgs } from "node:util";
 
+import * as grpc from "@grpc/grpc-js";
+
 import { encodeMessage, MAX_MESSAGE_SIZE } from "../protocol.js";
 import { AgentV2 } from "./agent.js";
+import { createGrpcServer, startGrpcServer } from "./grpc.js";
 import { AgentHandlerV2 } from "./handler.js";
 
 /**
@@ -245,6 +248,25 @@ export class AgentRunnerV2 {
     }
   }
 
+  private _shutdownGrpcServer(server: grpc.Server): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        this._logger("warn", "gRPC graceful shutdown timed out, forcing");
+        server.forceShutdown();
+        resolve();
+      }, 5000);
+
+      server.tryShutdown((error) => {
+        clearTimeout(timeout);
+        if (error) {
+          this._logger("warn", `gRPC tryShutdown error: ${error.message}, forcing`);
+          server.forceShutdown();
+        }
+        resolve();
+      });
+    });
+  }
+
   private async _runUdsServer(socketPath: string): Promise<void> {
     // Clean up existing socket
     if (fs.existsSync(socketPath)) {
@@ -336,13 +358,14 @@ export class AgentRunnerV2 {
   }
 
   private async _runGrpcServer(address: string): Promise<void> {
-    this._logger("info", `gRPC server listening on ${address}`);
+    const server = createGrpcServer({
+      handler: this._handler,
+      logger: (level, message) => this._logger(level as LogLevel, message),
+    });
+    const port = await startGrpcServer(server, address);
+    this._logger("info", `gRPC server listening on ${address} (port ${port})`);
 
-    // For now, we log a placeholder message
-    // Full gRPC implementation would require proto definitions
-    // and the @grpc/grpc-js library integration
-
-    // Wait for shutdown
+    // Wait for shutdown signal
     await new Promise<void>((resolve) => {
       const checkShutdown = () => {
         if (this._shuttingDown) {
@@ -353,6 +376,8 @@ export class AgentRunnerV2 {
       };
       checkShutdown();
     });
+
+    await this._shutdownGrpcServer(server);
   }
 }
 
