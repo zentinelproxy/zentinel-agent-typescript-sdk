@@ -3,7 +3,8 @@
  */
 
 export const PROTOCOL_VERSION = 2;
-export const MAX_MESSAGE_SIZE = 10 * 1024 * 1024; // 10MB
+/** @deprecated Use v2 limits: MAX_MESSAGE_SIZE_UDS (16 MB) or MAX_MESSAGE_SIZE_GRPC (10 MB) from v2/types */
+export const MAX_MESSAGE_SIZE = 10 * 1024 * 1024; // 10MB - legacy v1 limit
 
 export enum EventType {
   REQUEST_HEADERS = "request_headers",
