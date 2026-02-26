@@ -2,7 +2,7 @@
  * Protocol definitions for Zentinel agent communication.
  */
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 export const MAX_MESSAGE_SIZE = 10 * 1024 * 1024; // 10MB
 
 export enum EventType {

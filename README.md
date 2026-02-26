@@ -79,7 +79,7 @@ npx tsx my-agent.ts --socket /tmp/my-agent.sock
 | **Request/Response Wrappers** | Ergonomic access to headers, body, query params, metadata |
 | **Typed Configuration** | Generic `ConfigurableAgent<T>` with interface support |
 | **Async Native** | Built on native async/await for high-performance concurrent processing |
-| **Protocol Compatible** | Full compatibility with Zentinel agent protocol v1 |
+| **Protocol Compatible** | Full compatibility with Zentinel agent protocol v2 |
 
 ## Why Agents?
 
@@ -445,7 +445,7 @@ zentinel-agent-typescript-sdk/
 
 ## Protocol
 
-This SDK implements Zentinel Agent Protocol v1:
+This SDK implements Zentinel Agent Protocol v2:
 
 - **Transport**: Unix domain sockets (UDS) or gRPC
 - **Encoding**: Length-prefixed JSON (4-byte big-endian length prefix) for UDS

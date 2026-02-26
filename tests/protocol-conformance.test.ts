@@ -24,13 +24,13 @@ import {
 } from "../src/protocol.js";
 
 describe("Protocol Version", () => {
-  it("should be version 1", () => {
-    expect(PROTOCOL_VERSION).toBe(1);
+  it("should be version 2", () => {
+    expect(PROTOCOL_VERSION).toBe(2);
   });
 
   it("should include version in agent response", () => {
     const response = Decision.allow().build();
-    expect(response.version).toBe(1);
+    expect(response.version).toBe(2);
   });
 });
 
