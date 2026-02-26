@@ -9,7 +9,8 @@ import { parseArgs } from "node:util";
 
 import * as grpc from "@grpc/grpc-js";
 
-import { encodeMessage, MAX_MESSAGE_SIZE } from "../protocol.js";
+import { encodeMessage } from "../protocol.js";
+import { MAX_MESSAGE_SIZE_UDS } from "./types.js";
 import { AgentV2 } from "./agent.js";
 import { createGrpcServer, startGrpcServer } from "./grpc.js";
 import { AgentHandlerV2 } from "./handler.js";
@@ -319,7 +320,7 @@ export class AgentRunnerV2 {
       while (buffer.length >= 4) {
         const messageLength = buffer.readUInt32BE(0);
 
-        if (messageLength > MAX_MESSAGE_SIZE) {
+        if (messageLength > MAX_MESSAGE_SIZE_UDS) {
           this._logger("error", `Message size ${messageLength} exceeds maximum`);
           socket.destroy();
           return;

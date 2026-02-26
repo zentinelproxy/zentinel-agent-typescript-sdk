@@ -4,6 +4,12 @@
 
 export const PROTOCOL_VERSION_2 = 2;
 
+/** Maximum message size for v2 UDS transport (16 MB). */
+export const MAX_MESSAGE_SIZE_UDS = 16 * 1024 * 1024;
+
+/** Maximum message size for v2 gRPC transport (10 MB). */
+export const MAX_MESSAGE_SIZE_GRPC = 10 * 1024 * 1024;
+
 /**
  * Reason for agent shutdown request.
  */

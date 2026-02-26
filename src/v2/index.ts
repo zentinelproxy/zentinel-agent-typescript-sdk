@@ -60,6 +60,8 @@ export {
 // Types
 export {
   PROTOCOL_VERSION_2,
+  MAX_MESSAGE_SIZE_UDS,
+  MAX_MESSAGE_SIZE_GRPC,
   ShutdownReason,
   DrainReason,
   HealthState,
