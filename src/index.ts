@@ -4,7 +4,7 @@
  * A TypeScript SDK for building Zentinel agents that can process
  * HTTP requests and responses in the Zentinel proxy pipeline.
  *
- * ## V1 Protocol (Default)
+ * ## Usage
  *
  * @example
  * ```typescript
@@ -26,9 +26,9 @@
  * runAgent(new MyAgent());
  * ```
  *
- * ## V2 Protocol
+ * ## Advanced (gRPC Transport)
  *
- * For v2 protocol support with gRPC transport, capability negotiation,
+ * For gRPC transport, capability negotiation,
  * and health reporting, use the v2 module:
  *
  * @example

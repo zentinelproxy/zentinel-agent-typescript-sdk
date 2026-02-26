@@ -86,11 +86,11 @@ npx ts-node my-agent.ts --socket /tmp/my-agent.sock
 
 ## Protocol
 
-The SDK implements version 1 of the Zentinel Agent Protocol:
+The SDK implements version 2 of the Zentinel Agent Protocol:
 
 - **Transport**: Unix domain sockets (UDS) or gRPC
-- **Encoding**: Length-prefixed JSON (4-byte big-endian length prefix) for UDS
-- **Max message size**: 10MB
+- **Encoding**: Length-prefixed messages (4-byte big-endian length + 1-byte type prefix) for UDS
+- **Max message size**: 16 MB (UDS) / 4 MB (gRPC)
 
 For the canonical protocol specification, including wire format details, event types, and architectural diagrams, see the [Zentinel Agent Protocol documentation](https://github.com/zentinelproxy/zentinel/tree/main/crates/agent-protocol).
 
