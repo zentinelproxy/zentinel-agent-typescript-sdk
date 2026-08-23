@@ -1,0 +1,46 @@
+# Build, typecheck and test the SDK on every push and pull request.
+#
+# This repository had no CI at all: it ships a TypeScript SDK that downstream
+# users build against, and its 184 tests had never been run automatically.
+#
+# `npm run lint` is deliberately not a step here. ESLint 9 is a declared
+# dependency but the repository has no eslint config file of any kind, so the
+# script cannot run at all. Choosing a ruleset is a maintainer's decision, and
+# a CI job that is red on arrival teaches people to ignore the whole workflow.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        # `ci` rather than `install`, so the lockfile is authoritative and a
+        # dependency cannot drift underneath the build.
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
