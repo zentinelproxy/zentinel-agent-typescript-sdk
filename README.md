@@ -1,474 +1,172 @@
-<div align="center">
-
-<h1 align="center">
-  Zentinel Agent TypeScript SDK
-</h1>
-
 <p align="center">
-  <em>Build agents that extend Zentinel's security and policy capabilities.</em><br>
-  <em>Inspect, block, redirect, and transform HTTP traffic.</em>
-</p>
-
-<p align="center">
-  <a href="https://www.typescriptlang.org/">
-    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.0+-3178c6?logo=typescript&logoColor=white&style=for-the-badge">
-  </a>
-  <a href="https://nodejs.org/">
-    <img alt="Node.js" src="https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white&style=for-the-badge">
-  </a>
-  <a href="https://github.com/zentinelproxy/zentinel">
-    <img alt="Zentinel" src="https://img.shields.io/badge/Built%20for-Zentinel-f5a97f?style=for-the-badge">
-  </a>
-  <a href="LICENSE">
-    <img alt="License" src="https://img.shields.io/badge/License-Apache--2.0-c6a0f6?style=for-the-badge">
+  <a href="https://zentinelproxy.io">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/zentinelproxy/design/main/marks/lockup/zentinel-lockup-dark.svg">
+      <img alt="Zentinel" src="https://raw.githubusercontent.com/zentinelproxy/design/main/marks/lockup/zentinel-lockup-light.svg" height="52">
+    </picture>
   </a>
 </p>
 
+<h3 align="center">TypeScript agent SDK</h3>
+
+<p align="center">Write Zentinel agents in TypeScript for Node.js, speaking agent protocol v2 over a Unix socket or gRPC.</p>
+
 <p align="center">
-  <a href="docs/index.md">Documentation</a> •
-  <a href="docs/quickstart.md">Quickstart</a> •
-  <a href="docs/api.md">API Reference</a> •
-  <a href="docs/examples.md">Examples</a>
+  <a href="https://github.com/zentinelproxy/zentinel-agent-typescript-sdk/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/zentinelproxy/zentinel-agent-typescript-sdk/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-9b4d8a?style=flat&labelColor=1f161e">
+  <img alt="Agent protocol: v2" src="https://img.shields.io/badge/agent%20protocol-v2-f68d31?style=flat&labelColor=1f161e">
+  <img alt="Node 18+" src="https://img.shields.io/badge/node-18%2B-f68d31?style=flat&labelColor=1f161e&logo=nodedotjs&logoColor=white">
 </p>
 
-</div>
+<p align="center">
+  <a href="https://docs.zentinelproxy.io/agents/v2/">Agent protocol</a> &middot;
+  <a href="https://docs.zentinelproxy.io">Docs</a> &middot;
+  <a href="https://github.com/zentinelproxy">All repositories</a>
+</p>
 
----
+The SDK gives you an `Agent` interface with one async method per event, a
+`Decision` builder, typed configuration, and in `zentinel-agent-sdk/v2` a
+runner with Unix socket and gRPC transports, health and metrics reporting.
+Install it from source: the npm release is older than `main`.
 
-The Zentinel Agent TypeScript SDK provides a simple, async-first API for building agents that integrate with the [Zentinel](https://github.com/zentinelproxy/zentinel) reverse proxy. Agents can inspect requests and responses, block malicious traffic, add headers, and attach audit metadata—all from TypeScript/Node.js.
+> **Status (checked on 2026-10-21 against Zentinel 0.6.50): agents built with this SDK do not connect to Zentinel.**
+> Both Unix socket runners (`runAgent` and the `v2` runner) expect the v1
+> framing and fail to parse the proxy's v2 handshake as JSON, and the gRPC server never completes the handshake.
+> Because the agent accepts the connection and then goes silent, Zentinel
+> 0.6.50 waits on it at startup and never opens its listener. Unit tests pass in
+> CI. The quick start shows the intended shape.
 
-## Quick Start
+## Quick start
 
-```bash
-npm install zentinel-agent-sdk
-```
-
-Create `my-agent.ts`:
+In an ES module project with the SDK and `tsx` installed (see
+[Install](#install)), create `hello-agent.ts`:
 
 ```typescript
-import { Agent, Decision, Request, runAgent } from "zentinel-agent-sdk";
+import { Decision, Request } from "zentinel-agent-sdk";
+import { AgentCapabilities, AgentRunnerV2, AgentV2 } from "zentinel-agent-sdk/v2";
 
-class MyAgent implements Agent {
+class HelloAgent implements AgentV2 {
   get name(): string {
-    return "my-agent";
+    return "hello";
   }
 
-  async onRequest(request: Request): Promise<Decision> {
-    if (request.pathStartsWith("/admin")) {
-      return Decision.deny().withBody("Access denied");
-    }
-    return Decision.allow();
-  }
-}
-
-runAgent(new MyAgent());
-```
-
-Run the agent:
-
-```bash
-npx tsx my-agent.ts --socket /tmp/my-agent.sock
-```
-
-## Features
-
-| Feature | Description |
-|---------|-------------|
-| **Simple Agent API** | Implement `onRequest`, `onResponse`, and other hooks |
-| **Fluent Decision Builder** | Chain methods: `Decision.deny().withBody(...).withTag(...)` |
-| **Request/Response Wrappers** | Ergonomic access to headers, body, query params, metadata |
-| **Typed Configuration** | Generic `ConfigurableAgent<T>` with interface support |
-| **Async Native** | Built on native async/await for high-performance concurrent processing |
-| **Protocol Compatible** | Full compatibility with Zentinel agent protocol v2 |
-
-## Why Agents?
-
-Zentinel's agent system moves complex logic **out of the proxy core** and into isolated, testable, independently deployable processes:
-
-- **Security isolation** — WAF engines, auth validation, and custom logic run in separate processes
-- **Language flexibility** — Write agents in TypeScript, Python, Rust, Go, or any language
-- **Independent deployment** — Update agent logic without restarting the proxy
-- **Failure boundaries** — Agent crashes don't take down the dataplane
-
-Agents communicate with Zentinel over Unix sockets (UDS) or gRPC using the v2 agent protocol.
-
-## Architecture
-
-```
-┌─────────────┐         ┌──────────────┐         ┌──────────────┐
-│   Client    │────────▶│   Zentinel   │────────▶│   Upstream   │
-└─────────────┘         └──────────────┘         └──────────────┘
-                               │
-                               │ UDS or gRPC (v2 protocol)
-                               ▼
-                        ┌──────────────┐
-                        │    Agent     │
-                        │ (TypeScript) │
-                        └──────────────┘
-```
-
-1. Client sends request to Zentinel
-2. Zentinel forwards request headers to agent
-3. Agent returns decision (allow, block, redirect) with optional header mutations
-4. Zentinel applies the decision
-5. Agent can also inspect response headers before they reach the client
-
----
-
-## Core Concepts
-
-### Agent
-
-The `Agent` interface defines the hooks you can implement:
-
-```typescript
-import { Agent, Decision, Request, Response } from "zentinel-agent-sdk";
-
-class MyAgent implements Agent {
-  get name(): string {
-    // Required: Agent identifier for logging
-    return "my-agent";
+  capabilities(): AgentCapabilities {
+    return new AgentCapabilities("hello", "Hello agent", "0.1.0");
   }
 
-  async onRequest(request: Request): Promise<Decision> {
-    // Called when request headers arrive
-    return Decision.allow();
-  }
-
-  async onRequestBody(request: Request): Promise<Decision> {
-    // Called when request body is available (if body inspection enabled)
-    return Decision.allow();
-  }
-
-  async onResponse(request: Request, response: Response): Promise<Decision> {
-    // Called when response headers arrive from upstream
-    return Decision.allow();
-  }
-
-  async onResponseBody(request: Request, response: Response): Promise<Decision> {
-    // Called when response body is available (if body inspection enabled)
-    return Decision.allow();
-  }
-
-  async onRequestComplete(request: Request, status: number, durationMs: number): Promise<void> {
-    // Called when request processing completes. Use for logging/metrics.
+  async onRequest(_request: Request): Promise<Decision> {
+    return Decision.allow().addRequestHeader("X-Hello", "from-agent");
   }
 }
+
+await new AgentRunnerV2(new HelloAgent()).withUds("/tmp/hello.sock").run();
 ```
 
-### Request
+Run it with `node --import tsx hello-agent.ts`. It listens on `/tmp/hello.sock`.
 
-Access HTTP request data with convenience methods:
-
-```typescript
-async onRequest(request: Request): Promise<Decision> {
-  // Path matching
-  if (request.pathStartsWith("/api/")) {
-    // ...
-  }
-  if (request.pathEquals("/health")) {
-    return Decision.allow();
-  }
-
-  // Headers (case-insensitive)
-  const auth = request.header("authorization");
-  if (!request.hasHeader("x-api-key")) {
-    return Decision.unauthorized();
-  }
-
-  // Common headers as properties
-  const host = request.host;
-  const userAgent = request.userAgent;
-  const contentType = request.contentType;
-
-  // Query parameters
-  const page = request.query("page") ?? "1";
-  const tags = request.queryAll("tag");
-
-  // Request metadata
-  const clientIp = request.clientIp;
-  const correlationId = request.correlationId;
-
-  // Body (when body inspection is enabled)
-  if (request.body.length > 0) {
-    const data = request.bodyStr;
-    const json = request.bodyJson<{ name: string }>();
-  }
-
-  return Decision.allow();
-}
-```
-
-### Response
-
-Inspect upstream responses before they reach the client:
-
-```typescript
-async onResponse(request: Request, response: Response): Promise<Decision> {
-  // Status code
-  if (response.isServerError()) {
-    return Decision.allow().withTag("upstream-error");
-  }
-
-  // Headers
-  const contentType = response.header("content-type");
-
-  // Add security headers to all responses
-  return Decision.allow()
-    .addResponseHeader("X-Frame-Options", "DENY")
-    .addResponseHeader("X-Content-Type-Options", "nosniff")
-    .removeResponseHeader("Server");
-}
-```
-
-### Decision
-
-Build responses with a fluent API:
-
-```typescript
-// Allow the request
-Decision.allow();
-
-// Block with common status codes
-Decision.deny();          // 403 Forbidden
-Decision.unauthorized();  // 401 Unauthorized
-Decision.rateLimited();   // 429 Too Many Requests
-Decision.block(503);      // Custom status
-
-// Block with response body
-Decision.deny().withBody("Access denied");
-Decision.block(400).withJsonBody({ error: "Invalid request" });
-
-// Redirect
-Decision.redirect("/login");                   // 302 temporary
-Decision.redirect("/new-path", 301);           // 301 permanent
-Decision.redirectPermanent("/new-path");       // 301 permanent
-
-// Modify headers
-Decision.allow()
-  .addRequestHeader("X-User-ID", userId)
-  .removeRequestHeader("Cookie")
-  .addResponseHeader("X-Cache", "HIT")
-  .removeResponseHeader("X-Powered-By");
-
-// Audit metadata (appears in Zentinel logs)
-Decision.deny()
-  .withTag("blocked")
-  .withRuleId("SQLI-001")
-  .withConfidence(0.95)
-  .withMetadata("matched_pattern", pattern);
-```
-
-### ConfigurableAgent
-
-For agents with typed configuration:
-
-```typescript
-import { ConfigurableAgent, Decision, Request } from "zentinel-agent-sdk";
-
-interface RateLimitConfig {
-  requestsPerMinute: number;
-  enabled: boolean;
-}
-
-class RateLimitAgent extends ConfigurableAgent<RateLimitConfig> {
-  constructor() {
-    super({ requestsPerMinute: 60, enabled: true });
-  }
-
-  get name(): string {
-    return "rate-limiter";
-  }
-
-  async onConfigApplied(config: RateLimitConfig): Promise<void> {
-    console.log(`Rate limit set to ${config.requestsPerMinute}/min`);
-  }
-
-  async onRequest(request: Request): Promise<Decision> {
-    if (!this.config.enabled) {
-      return Decision.allow();
-    }
-    // Use this.config.requestsPerMinute...
-    return Decision.allow();
-  }
-}
-```
-
----
-
-## Running Agents
-
-### Command Line
-
-The `runAgent` helper parses CLI arguments:
-
-```bash
-# Basic usage
-npx tsx my-agent.ts --socket /tmp/my-agent.sock
-
-# With options
-npx tsx my-agent.ts \
-    --socket /tmp/my-agent.sock \
-    --log-level debug \
-    --json-logs
-```
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--socket PATH` | Unix socket path | `/tmp/zentinel-agent.sock` |
-| `--log-level LEVEL` | debug, info, warn, error | `info` |
-| `--json-logs` | Output logs as JSON | disabled |
-
-### Programmatic
-
-```typescript
-import { AgentRunner } from "zentinel-agent-sdk";
-
-const runner = new AgentRunner(new MyAgent())
-  .withSocket("/tmp/my-agent.sock")
-  .withLogLevel("debug")
-  .withJsonLogs();
-
-await runner.run();
-```
-
----
-
-## Zentinel Configuration
-
-Configure Zentinel to connect to your agent:
+Then point Zentinel at the socket. This assumes your config already defines a
+listener and an upstream named `backend`:
 
 ```kdl
 agents {
-    agent "my-agent" type="custom" {
-        unix-socket path="/tmp/my-agent.sock"
+    agent "hello" type="custom" {
+        unix-socket "/tmp/hello.sock"
         events "request_headers"
         timeout-ms 100
-        failure-mode "open"
     }
 }
 
 filters {
-    filter "my-filter" {
+    filter "hello" {
         type "agent"
-        agent "my-agent"
+        agent "hello"
+        failure-mode "closed"
     }
 }
 
 routes {
-    route "api" {
+    route "default" {
         matches {
-            path-prefix "/api/"
+            path-prefix "/"
         }
         upstream "backend"
-        filters "my-filter"
+        filters "hello"
     }
 }
 ```
 
-### Configuration Options
+Check the file with `zentinel test -c zentinel.kdl` and start Zentinel. Every
+request on the route then reaches `backend` with `X-Hello: from-agent`.
+`failure-mode "closed"` on the filter turns an unreachable agent into a 503
+instead of letting requests through unprocessed, so a wiring mistake shows up
+on the first request.
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `unix-socket path="..."` | Path to agent's Unix socket | required |
-| `events` | Events to send: `request_headers`, `request_body`, `response_headers`, `response_body` | `request_headers` |
-| `timeout-ms` | Timeout for agent calls | `1000` |
-| `failure-mode` | `"open"` (allow on failure) or `"closed"` (block on failure) | `"open"` |
+With this SDK as it is today, that 503 is what you get: see the status note
+above.
 
-See [docs/configuration.md](docs/configuration.md) for complete configuration reference.
+## Install
 
----
+Build it from source and install the build:
 
-## Examples
+```bash
+git clone https://github.com/zentinelproxy/zentinel-agent-typescript-sdk
+(cd zentinel-agent-typescript-sdk && npm ci && npm run build)
+npm install ./zentinel-agent-typescript-sdk tsx
+npm pkg set type=module
+```
 
-The `examples/` directory contains complete, runnable examples:
+Node.js 18 or later (`engines`). Two shortcuts do not give you this code:
+`npm install zentinel-agent-sdk` installs 0.3.0 from 2026-02-20, which
+predates the move to v2 defaults (its `PROTOCOL_VERSION` is 1), and
+`npm install github:zentinelproxy/zentinel-agent-typescript-sdk` installs a
+package with no `dist/`, because the repository does not commit the build and
+has no `prepare` script.
 
-| Example | Description |
-|---------|-------------|
-| [`simple-agent.ts`](examples/simple-agent.ts) | Basic request blocking and header modification |
-| [`configurable-agent.ts`](examples/configurable-agent.ts) | Rate limiting with typed configuration |
+## API overview
 
-See [docs/examples.md](docs/examples.md) for more patterns: authentication, rate limiting, IP filtering, header transformation, and more.
+- **`Agent`**: `name`, `onRequest`, `onRequestBody`, `onResponse`,
+  `onResponseBody`, `onRequestComplete`, `onConfigure`, `onWebSocketFrame`,
+  `onGuardrailInspect`; all optional except `name`.
+- **`ConfigurableAgent<T>`**: typed configuration from the agent's `config` block.
+- **`AgentV2`** (`zentinel-agent-sdk/v2`): adds `capabilities()` (required),
+  health and metrics; `AgentRunnerV2` with `withUds`, `withGrpc`, `withBoth`;
+  `runAgentV2(agent)` reads `--socket`, `--grpc`, `--log-level`, `--json-logs`.
+- **`Request` / `Response`**: header, path, query, client IP and body accessors.
+- **`Decision`**: `allow()`, `deny()`, `unauthorized()`, `rateLimited()`,
+  `block(status)`, `redirect(url)`, `challenge(..)`, then chain
+  `addRequestHeader`, `removeRequestHeader`, `addResponseHeader`, `withBody`,
+  `withJsonBody`, `withTag`, `withRuleId`, `withConfidence`, `withMetadata`,
+  `withRoutingMetadata`, body mutations.
 
----
+Examples are in [`examples/`](examples/).
 
 ## Development
 
-This project uses [mise](https://mise.jdx.dev/) for tool management.
-
 ```bash
-# Install tools
-mise install
-
-# Install dependencies
-npm install
-
-# Run tests
-npm test
-
-# Type checking
+mise install        # Node 22
+npm ci
 npm run typecheck
-
-# Build
 npm run build
-```
-
-### Without mise
-
-```bash
-# Ensure Node.js 18+ is installed
-npm install
 npm test
 ```
 
-### Project Structure
+CI runs typecheck, build and test on Node 20. `package.json` has a `lint`
+script, but the repository has no ESLint configuration, so it does not run.
 
-```
-zentinel-agent-typescript-sdk/
-├── src/
-│   ├── index.ts        # Public API exports
-│   ├── agent.ts        # Agent and ConfigurableAgent base classes
-│   ├── decision.ts     # Decision builder
-│   ├── protocol.ts     # Wire protocol types and encoding
-│   ├── request.ts      # Request wrapper
-│   ├── response.ts     # Response wrapper
-│   ├── handler.ts      # AgentHandler for event routing
-│   └── runner.ts       # AgentRunner and CLI handling
-├── tests/
-│   ├── sdk.test.ts                    # Unit tests
-│   ├── protocol-conformance.test.ts   # Protocol compatibility tests
-│   └── integration/                   # Integration tests
-└── examples/                          # Example agents
-```
+## Related
 
----
-
-## Protocol
-
-This SDK implements Zentinel Agent Protocol v2:
-
-- **Transport**: Unix domain sockets (UDS) or gRPC
-- **Encoding**: Length-prefixed binary (4-byte big-endian length + 1-byte type prefix) for UDS
-- **Max message size**: 16 MB (UDS) / 10 MB (gRPC)
-- **Events**: `configure`, `request_headers`, `request_body_chunk`, `response_headers`, `response_body_chunk`, `request_complete`, `websocket_frame`, `guardrail_inspect`
-- **Decisions**: `allow`, `block`, `redirect`, `challenge`
-
-The protocol is designed for low latency and high throughput, with support for streaming body inspection.
-
-For the canonical protocol specification, see the [Zentinel Agent Protocol documentation](https://github.com/zentinelproxy/zentinel/tree/main/crates/agent-protocol).
-
----
-
-## Community
-
-- [Issues](https://github.com/zentinelproxy/zentinel-agent-typescript-sdk/issues) — Bug reports and feature requests
-- [Zentinel Discussions](https://github.com/zentinelproxy/zentinel/discussions) — Questions and ideas
-- [Zentinel Documentation](https://zentinelproxy.io/docs) — Proxy documentation
-
-Contributions welcome. Please open an issue to discuss significant changes before submitting a PR.
-
----
+- [Agent protocol v2](https://docs.zentinelproxy.io/agents/v2/)
+- [Agent configuration](https://docs.zentinelproxy.io/configuration/agents/)
+- [Guides in this repository](docs/index.md): getting started, API, configuration, examples
+- [Other SDKs](https://github.com/zentinelproxy?q=sdk)
+- [Zentinel](https://github.com/zentinelproxy/zentinel)
 
 ## License
 
-Apache 2.0 — See [LICENSE](LICENSE).
+Apache-2.0, see [`LICENSE`](LICENSE).
+
+---
+
+<p align="center">
+  <sub>Part of <a href="https://zentinelproxy.io">Zentinel</a>, the security-first reverse proxy. The shisa guards the gate.</sub>
+</p>
