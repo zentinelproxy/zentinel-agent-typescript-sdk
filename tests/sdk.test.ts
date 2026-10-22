@@ -737,7 +737,7 @@ describe("Response", () => {
 describe("Agent", () => {
   describe("default handlers", () => {
     it("provides default implementations via ConfigurableAgent", async () => {
-      class TestAgent extends ConfigurableAgent<{}> {
+      class TestAgent extends ConfigurableAgent<Record<string, never>> {
         constructor() {
           super({});
         }
@@ -814,7 +814,7 @@ describe("ConfigurableAgent", () => {
 
 describe("WebSocket frame handling", () => {
   it("onWebSocketFrame returns allow by default", async () => {
-    class TestAgent extends ConfigurableAgent<{}> {
+    class TestAgent extends ConfigurableAgent<Record<string, never>> {
       constructor() {
         super({});
       }

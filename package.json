@@ -1,6 +1,6 @@
 {
   "name": "zentinel-agent-sdk",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Zentinel Agent SDK for TypeScript - v2 protocol support",
   "type": "module",
   "main": "dist/index.js",
@@ -20,14 +20,16 @@
   ],
   "scripts": {
     "build": "tsc",
+    "build:examples": "tsc -p tsconfig.examples.json",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint src",
+    "lint": "eslint src tests examples",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "postbuild": "mkdir -p dist/v2/proto && cp src/v2/proto/*.proto dist/v2/proto/",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "prepare": "npm run build"
   },
   "keywords": [
     "zentinel",

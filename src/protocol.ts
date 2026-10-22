@@ -149,8 +149,8 @@ export function parseRequestCompleteEvent(data: Record<string, unknown>): Reques
     correlationId: (data.correlation_id as string) || "",
     status: (data.status as number) || 0,
     durationMs: (data.duration_ms as number) || 0,
-    requestSize: (data.request_size as number) || 0,
-    responseSize: (data.response_size as number) || 0,
+    requestSize: (data.request_body_size as number) || (data.request_size as number) || 0,
+    responseSize: (data.response_body_size as number) || (data.response_size as number) || 0,
     error: data.error as string | undefined,
   };
 }
@@ -418,25 +418,5 @@ export function agentResponseToDict(response: AgentResponse): Record<string, unk
   };
 }
 
-export function encodeMessage(data: Record<string, unknown>): Buffer {
-  const jsonBytes = Buffer.from(JSON.stringify(data), "utf-8");
-  const length = jsonBytes.length;
-  if (length > MAX_MESSAGE_SIZE) {
-    throw new Error(`Message size ${length} exceeds maximum ${MAX_MESSAGE_SIZE}`);
-  }
-  const lengthBuffer = Buffer.alloc(4);
-  lengthBuffer.writeUInt32BE(length, 0);
-  return Buffer.concat([lengthBuffer, jsonBytes]);
-}
-
-export function decodeMessage(data: Buffer): Record<string, unknown> {
-  if (data.length < 4) {
-    throw new Error("Message too short to contain length prefix");
-  }
-  const length = data.readUInt32BE(0);
-  if (length > MAX_MESSAGE_SIZE) {
-    throw new Error(`Message size ${length} exceeds maximum ${MAX_MESSAGE_SIZE}`);
-  }
-  const jsonBytes = data.subarray(4, 4 + length);
-  return JSON.parse(jsonBytes.toString("utf-8")) as Record<string, unknown>;
-}
+// Framing lives in v2/uds.ts (`encodeFrame`, `FrameDecoder`): the v1 framing
+// (length + JSON, no type byte) is gone, because the proxy no longer speaks it.

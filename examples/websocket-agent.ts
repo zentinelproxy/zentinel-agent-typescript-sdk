@@ -34,7 +34,7 @@ class WebSocketFilterAgent implements Agent {
     return "websocket-filter";
   }
 
-  async onRequest(request: Request): Promise<Decision> {
+  async onRequest(_request: Request): Promise<Decision> {
     return Decision.allow();
   }
 

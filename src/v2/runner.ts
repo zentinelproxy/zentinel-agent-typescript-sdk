@@ -9,11 +9,10 @@ import { parseArgs } from "node:util";
 
 import * as grpc from "@grpc/grpc-js";
 
-import { encodeMessage } from "../protocol.js";
-import { MAX_MESSAGE_SIZE_UDS } from "./types.js";
 import { AgentV2 } from "./agent.js";
 import { createGrpcServer, startGrpcServer } from "./grpc.js";
 import { AgentHandlerV2 } from "./handler.js";
+import { serveUdsConnection } from "./uds.js";
 
 /**
  * Transport type for v2 agents.
@@ -113,6 +112,7 @@ export class AgentRunnerV2 {
   private readonly _handler: AgentHandlerV2;
   private _config: V2RunnerConfig;
   private _udsServer: net.Server | null = null;
+  private readonly _udsSockets: Set<net.Socket> = new Set();
   private _shuttingDown = false;
   private _logger: (level: LogLevel, message: string) => void;
 
@@ -246,6 +246,11 @@ export class AgentRunnerV2 {
 
     if (this._udsServer) {
       this._udsServer.close();
+      // `close` waits for open connections, and the proxy keeps its
+      // connections open: end them so the process can exit.
+      for (const socket of this._udsSockets) {
+        socket.destroy();
+      }
     }
   }
 
@@ -308,54 +313,12 @@ export class AgentRunnerV2 {
   }
 
   private _handleUdsConnection(socket: net.Socket): void {
-    const remoteAddress = socket.remoteAddress || "unknown";
-    this._logger("debug", `UDS connection from ${remoteAddress}`);
-
-    let buffer = Buffer.alloc(0);
-
-    socket.on("data", async (data: Buffer) => {
-      buffer = Buffer.concat([buffer, data]);
-
-      // Process complete messages
-      while (buffer.length >= 4) {
-        const messageLength = buffer.readUInt32BE(0);
-
-        if (messageLength > MAX_MESSAGE_SIZE_UDS) {
-          this._logger("error", `Message size ${messageLength} exceeds maximum`);
-          socket.destroy();
-          return;
-        }
-
-        if (buffer.length < 4 + messageLength) {
-          // Wait for more data
-          break;
-        }
-
-        // Extract the message
-        const messageData = buffer.subarray(4, 4 + messageLength);
-        buffer = buffer.subarray(4 + messageLength);
-
-        try {
-          const message = JSON.parse(messageData.toString("utf-8")) as Record<
-            string,
-            unknown
-          >;
-          const response = await this._handler.handleEvent(message);
-          const responseBuffer = encodeMessage(response);
-          socket.write(responseBuffer);
-        } catch (error) {
-          this._logger("error", `Error processing message: ${error}`);
-        }
-      }
-    });
-
-    socket.on("error", (error) => {
-      this._logger("error", `Socket error: ${error.message}`);
-    });
-
-    socket.on("close", () => {
-      this._logger("debug", `Connection closed: ${remoteAddress}`);
-    });
+    this._logger("debug", "UDS connection from the proxy");
+    this._udsSockets.add(socket);
+    socket.on("close", () => this._udsSockets.delete(socket));
+    serveUdsConnection(socket, this._handler, (level, message) =>
+      this._logger(level as LogLevel, message)
+    );
   }
 
   private async _runGrpcServer(address: string): Promise<void> {

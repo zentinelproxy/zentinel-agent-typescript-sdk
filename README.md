@@ -29,12 +29,15 @@ The SDK gives you an `Agent` interface with one async method per event, a
 runner with Unix socket and gRPC transports, health and metrics reporting.
 Install it from source: the npm release is older than `main`.
 
-> **Status (checked on 2026-10-21 against Zentinel 0.6.50): agents built with this SDK do not connect to Zentinel.**
-> Both Unix socket runners (`runAgent` and the `v2` runner) expect the v1
-> framing and fail to parse the proxy's v2 handshake as JSON, and the gRPC server never completes the handshake.
-> Because the agent accepts the connection and then goes silent, Zentinel
-> 0.6.50 waits on it at startup and never opens its listener. Unit tests pass in
-> CI. The quick start shows the intended shape.
+> **Status (checked on 2026-10-22): agents built with this SDK pass the
+> [conformance harness](https://github.com/zentinelproxy/zentinel/tree/main/sdk-conformance)
+> against Zentinel built from `main`**, over the Unix socket and gRPC:
+> handshake, configuration, request and response header mutations, blocking,
+> request-body inspection and reconnecting after a restart. CI runs the
+> harness on every change. Delivering an agent's `config { }` block needs a
+> Zentinel release that includes zentinel#603; with 0.6.50 and earlier,
+> `onConfigure` is never called. Not yet published to npm (see
+> [Install](#install)).
 
 ## Quick start
 
@@ -63,6 +66,8 @@ await new AgentRunnerV2(new HelloAgent()).withUds("/tmp/hello.sock").run();
 ```
 
 Run it with `node --import tsx hello-agent.ts`. It listens on `/tmp/hello.sock`.
+The same agent is [`examples/hello-agent.ts`](examples/hello-agent.ts), which
+CI runs against a real Zentinel.
 
 Then point Zentinel at the socket. This assumes your config already defines a
 listener and an upstream named `backend`:
@@ -101,9 +106,6 @@ request on the route then reaches `backend` with `X-Hello: from-agent`.
 instead of letting requests through unprocessed, so a wiring mistake shows up
 on the first request.
 
-With this SDK as it is today, that 503 is what you get: see the status note
-above.
-
 ## Install
 
 Build it from source and install the build:
@@ -115,12 +117,11 @@ npm install ./zentinel-agent-typescript-sdk tsx
 npm pkg set type=module
 ```
 
-Node.js 18 or later (`engines`). Two shortcuts do not give you this code:
-`npm install zentinel-agent-sdk` installs 0.3.0 from 2026-02-20, which
-predates the move to v2 defaults (its `PROTOCOL_VERSION` is 1), and
-`npm install github:zentinelproxy/zentinel-agent-typescript-sdk` installs a
-package with no `dist/`, because the repository does not commit the build and
-has no `prepare` script.
+Node.js 18 or later (`engines`). `npm install
+github:zentinelproxy/zentinel-agent-typescript-sdk` also works: the `prepare`
+script builds `dist/` on install. `npm install zentinel-agent-sdk` does not
+give you this code: it installs 0.3.0 from 2026-02-20, which predates v2
+(its `PROTOCOL_VERSION` is 1) and cannot talk to Zentinel.
 
 ## API overview
 
@@ -131,6 +132,11 @@ has no `prepare` script.
 - **`AgentV2`** (`zentinel-agent-sdk/v2`): adds `capabilities()` (required),
   health and metrics; `AgentRunnerV2` with `withUds`, `withGrpc`, `withBoth`;
   `runAgentV2(agent)` reads `--socket`, `--grpc`, `--log-level`, `--json-logs`.
+  `runAgent(agent)` serves a plain `Agent` over the same v2 Unix socket transport.
+- **`onConfigure`** receives the agent's `config { }` block on every new
+  connection (each pooled connection and every reconnect), so it must be
+  idempotent. Throwing rejects the configuration, and the proxy does not use
+  that connection.
 - **`Request` / `Response`**: header, path, query, client IP and body accessors.
 - **`Decision`**: `allow()`, `deny()`, `unauthorized()`, `rateLimited()`,
   `block(status)`, `redirect(url)`, `challenge(..)`, then chain
@@ -145,13 +151,26 @@ Examples are in [`examples/`](examples/).
 ```bash
 mise install        # Node 22
 npm ci
+npm run lint
 npm run typecheck
 npm run build
 npm test
 ```
 
-CI runs typecheck, build and test on Node 20. `package.json` has a `lint`
-script, but the repository has no ESLint configuration, so it does not run.
+CI runs the same on Node 20, then the conformance harness: it builds the SDK
+and [`examples/conformance-agent.ts`](examples/conformance-agent.ts) and runs
+them behind a real `zentinel`. To run it locally, with a `zentinel` binary
+built from Zentinel's `main` and a checkout of its `main`
+branch:
+
+```bash
+npm run build && npm run build:examples
+python3 ../zentinel/sdk-conformance/run.py --zentinel-bin path/to/zentinel \
+  --agent-cmd 'node build/examples/conformance-agent.js --socket {socket}' \
+  --grpc-agent-cmd 'node build/examples/conformance-agent.js --grpc {grpc}'
+python3 ../zentinel/sdk-conformance/run.py --zentinel-bin path/to/zentinel \
+  --profile hello --agent-cmd 'node build/examples/hello-agent.js {socket}'
+```
 
 ## Related
 

@@ -1,12 +1,11 @@
-# Build, typecheck and test the SDK on every push and pull request.
+# Build, lint, typecheck and test the SDK on every push and pull request, and
+# run its agents behind a real Zentinel.
 #
-# This repository had no CI at all: it ships a TypeScript SDK that downstream
-# users build against, and its 184 tests had never been run automatically.
-#
-# `npm run lint` is deliberately not a step here. ESLint 9 is a declared
-# dependency but the repository has no eslint config file of any kind, so the
-# script cannot run at all. Choosing a ruleset is a maintainer's decision, and
-# a CI job that is red on arrival teaches people to ignore the whole workflow.
+# The unit tests passed for months while no agent built with this SDK could
+# complete a handshake with the proxy (zentinel#600): they tested the SDK
+# against its own idea of the protocol. The conformance job tests it against
+# the proxy itself, with the shared harness every SDK runs
+# (zentinelproxy/zentinel, sdk-conformance/).
 name: CI
 
 on:
@@ -36,11 +35,54 @@ jobs:
         # dependency cannot drift underneath the build.
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
       - name: Typecheck
         run: npm run typecheck
 
       - name: Build
-        run: npm run build
+        run: |
+          npm run build
+          test -f dist/index.js && test -f dist/v2/index.js && test -f dist/v2/proto/agent_v2.proto
 
       - name: Test
         run: npm test
+
+  conformance:
+    name: Conformance (agent protocol v2)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Build the SDK and the example agents
+        run: |
+          npm ci
+          npm run build
+          npm run build:examples
+
+      # The conformance agent, over a Unix socket and over gRPC.
+      - name: Conformance agent
+        uses: zentinelproxy/zentinel/sdk-conformance@main
+        with:
+          # Build zentinel from main until a release includes zentinel#603
+          # (config delivery); then pin `zentinel-version` to that release.
+          zentinel-ref: main
+          agent-command: node build/examples/conformance-agent.js --socket {socket}
+          grpc-agent-command: node build/examples/conformance-agent.js --grpc {grpc}
+
+      # The README quick-start agent, so the README cannot drift from code
+      # that works.
+      - name: README quick-start agent
+        uses: zentinelproxy/zentinel/sdk-conformance@main
+        with:
+          zentinel-ref: main
+          profile: hello
+          agent-command: node build/examples/hello-agent.js {socket}

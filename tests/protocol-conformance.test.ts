@@ -7,20 +7,17 @@
 
 import { describe, it, expect } from "vitest";
 import { Decision } from "../src/decision.js";
+import { encodeFrame, FrameDecoder, MessageType } from "../src/v2/uds.js";
 import {
   PROTOCOL_VERSION,
   agentResponseToDict,
   headerOpToDict,
-  auditMetadataToDict,
   parseRequestHeadersEvent,
   parseRequestBodyChunkEvent,
   parseResponseHeadersEvent,
   parseResponseBodyChunkEvent,
   parseRequestCompleteEvent,
   parseConfigureEvent,
-  encodeMessage,
-  decodeMessage,
-  MAX_MESSAGE_SIZE,
 } from "../src/protocol.js";
 
 describe("Protocol Version", () => {
@@ -508,36 +505,21 @@ describe("Body Mutation Format", () => {
 
 describe("Wire Format", () => {
   describe("message encoding", () => {
-    it("uses 4-byte big-endian length prefix", () => {
-      const data = { version: 1, decision: "allow" };
-      const encoded = encodeMessage(data);
+    it("uses the v2 frame: length (type byte + payload), type, JSON", () => {
+      const data = { version: 2, decision: "allow" };
+      const encoded = encodeFrame(MessageType.AgentResponse, data);
 
-      // First 4 bytes are the length prefix
-      const length = encoded.readUInt32BE(0);
-      expect(length).toBe(encoded.length - 4);
-
-      // Remaining bytes are JSON
-      const json = encoded.subarray(4).toString("utf-8");
-      expect(JSON.parse(json)).toEqual(data);
+      expect(encoded.readUInt32BE(0)).toBe(encoded.length - 4);
+      expect(encoded.readUInt8(4)).toBe(MessageType.AgentResponse);
+      expect(JSON.parse(encoded.subarray(5).toString("utf-8"))).toEqual(data);
     });
 
-    it("decodes length-prefixed message", () => {
-      const original = { version: 1, decision: "allow", test: true };
-      const encoded = encodeMessage(original);
-      const decoded = decodeMessage(encoded);
+    it("round-trips through the decoder", () => {
+      const original = { version: 2, decision: "allow", test: true };
+      const [frame] = new FrameDecoder().push(encodeFrame(MessageType.AgentResponse, original));
 
-      expect(decoded).toEqual(original);
-    });
-
-    it("throws on message exceeding MAX_MESSAGE_SIZE", () => {
-      // Create a very large object
-      const largeData = { data: "x".repeat(MAX_MESSAGE_SIZE + 1) };
-      expect(() => encodeMessage(largeData)).toThrow(/exceeds maximum/);
-    });
-
-    it("throws on incomplete message", () => {
-      const data = Buffer.alloc(2); // Too short for length prefix
-      expect(() => decodeMessage(data)).toThrow(/too short/);
+      expect(frame.type).toBe(MessageType.AgentResponse);
+      expect(JSON.parse(frame.payload.toString("utf-8"))).toEqual(original);
     });
   });
 

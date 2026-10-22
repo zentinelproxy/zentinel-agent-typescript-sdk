@@ -353,3 +353,106 @@ describe("gRPC graceful shutdown", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// What the proxy's client (tonic) needs from ProcessStream
+// ---------------------------------------------------------------------------
+
+describe("gRPC ProcessStream as the proxy drives it", () => {
+  it("sends response headers before the client has sent anything", async () => {
+    // tonic's `process_stream(..).await` waits for the response headers
+    // before the proxy writes its handshake. A server that holds them back
+    // until its first message deadlocks the handshake (zentinel#600).
+    const stream = client.ProcessStream();
+    const metadata = await new Promise<grpc.Metadata>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("no response headers")), 2000);
+      stream.on("metadata", (md: grpc.Metadata) => {
+        clearTimeout(timer);
+        resolve(md);
+      });
+      stream.on("error", () => {});
+    });
+    expect(metadata).toBeDefined();
+    stream.cancel();
+  });
+
+  it("applies the configure event before answering the ping after it", async () => {
+    const order: string[] = [];
+    class SlowConfigAgent extends TestAgent {
+      async onConfigure(_config: Record<string, unknown>): Promise<void> {
+        await new Promise((r) => setTimeout(r, 100));
+        order.push("configured");
+      }
+    }
+    const slowServer = createGrpcServer({ handler: new AgentHandlerV2(new SlowConfigAgent()) });
+    const slowPort = await startGrpcServer(slowServer, "127.0.0.1:0");
+    const slowClient = new agentV2Package.AgentServiceV2(
+      `127.0.0.1:${slowPort}`,
+      grpc.credentials.createInsecure()
+    );
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const stream = slowClient.ProcessStream();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        stream.on("data", (msg: any) => {
+          if (msg.message === "pong") {
+            order.push(`pong:${msg.pong.sequence}`);
+            stream.end();
+          }
+        });
+        stream.on("end", () => resolve());
+        stream.on("error", reject);
+        stream.write({ handshake: { supported_versions: [2, 1], proxy_id: "p", proxy_version: "0" } });
+        stream.write({ configure: { config_json: '{"nested":{"value":"x"}}', is_initial: true } });
+        stream.write({ ping: { sequence: 7, timestamp_ms: 1 } });
+      });
+      expect(order).toEqual(["configured", "pong:7"]);
+    } finally {
+      slowClient.close();
+      slowServer.forceShutdown();
+    }
+  });
+
+  it("ends the stream when the agent rejects its configuration", async () => {
+    class RejectingAgent extends TestAgent {
+      async onConfigure(_config: Record<string, unknown>): Promise<void> {
+        throw new Error("no thanks");
+      }
+    }
+    const rejServer = createGrpcServer({ handler: new AgentHandlerV2(new RejectingAgent()) });
+    const rejPort = await startGrpcServer(rejServer, "127.0.0.1:0");
+    const rejClient = new agentV2Package.AgentServiceV2(
+      `127.0.0.1:${rejPort}`,
+      grpc.credentials.createInsecure()
+    );
+    try {
+      const kinds: string[] = [];
+      await new Promise<void>((resolve, reject) => {
+        const stream = rejClient.ProcessStream();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        stream.on("data", (msg: any) => kinds.push(msg.message));
+        stream.on("end", () => resolve());
+        stream.on("error", reject);
+        stream.write({ handshake: { supported_versions: [2], proxy_id: "p", proxy_version: "0" } });
+        stream.write({ configure: { config_json: "{}", is_initial: true } });
+        stream.write({ ping: { sequence: 1, timestamp_ms: 1 } });
+      });
+      // The handshake was answered; the ping after the rejection was not.
+      expect(kinds).toEqual(["handshake"]);
+    } finally {
+      rejClient.close();
+      rejServer.forceShutdown();
+    }
+  });
+
+  it("reports capabilities in the proto shape", async () => {
+    const response = await processEvent({
+      handshake: { supported_versions: [2], proxy_id: "p", proxy_version: "0" },
+    });
+    const caps = response.handshake.capabilities;
+    expect(caps.protocol_version).toBe(2);
+    expect(caps.health_config).toBeDefined();
+    // proto EventType: REQUEST_HEADERS = 1
+    expect(caps.supported_events).toContain(1);
+  });
+});

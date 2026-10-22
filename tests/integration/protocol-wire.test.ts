@@ -9,12 +9,9 @@ import { Agent, Decision } from "../../src/index.js";
 import { AgentHandler } from "../../src/handler.js";
 import { Request } from "../../src/request.js";
 import { Response } from "../../src/response.js";
-import {
-  PROTOCOL_VERSION,
-  encodeMessage,
-  decodeMessage,
-  MAX_MESSAGE_SIZE,
-} from "../../src/protocol.js";
+import { PROTOCOL_VERSION } from "../../src/protocol.js";
+import { encodeFrame, FrameDecoder, MessageType } from "../../src/v2/uds.js";
+import { MAX_MESSAGE_SIZE_UDS } from "../../src/v2/types.js";
 
 // Test agent that blocks /block paths and allows everything else
 class SimpleTestAgent implements Agent {
@@ -307,7 +304,7 @@ describe("AgentHandler", () => {
 
       const response = await handler.handleEvent(event);
 
-      expect(response).toEqual({ success: true });
+      expect(response.decision).toBe("allow");
 
       // Subsequent response headers should not find cached request
       const laterResponse = await handler.handleEvent({
@@ -339,7 +336,9 @@ describe("AgentHandler", () => {
 
       const response = await handler.handleEvent(event);
 
-      expect(response).toEqual({ success: true });
+      // The proxy reads an agent response; allow means accepted.
+      expect(response.decision).toBe("allow");
+      expect(response.version).toBe(PROTOCOL_VERSION);
     });
 
     it("handles configuration errors gracefully", async () => {
@@ -363,8 +362,10 @@ describe("AgentHandler", () => {
 
       const response = await failingHandler.handleEvent(event);
 
-      expect(response.success).toBe(false);
-      expect(response.error).toContain("Configuration failed");
+      // A rejection is a block, which makes the proxy drop the connection.
+      expect(response.decision).toEqual({
+        block: { status: 500, body: "Configuration rejected" },
+      });
     });
   });
 
@@ -505,114 +506,42 @@ describe("Wire Protocol Round-Trip", () => {
     };
 
     const completeResponse = await handler.handleEvent(completeEvent);
-    expect(completeResponse.success).toBe(true);
+    expect(completeResponse.decision).toBe("allow");
   });
 });
 
-describe("Message Encoding", () => {
-  it("encodes with 4-byte big-endian length prefix", () => {
+describe("Message Encoding (v2 UDS framing)", () => {
+  it("prefixes a 4-byte big-endian length that counts the type byte", () => {
     const data = { test: "value" };
-    const encoded = encodeMessage(data);
+    const encoded = encodeFrame(MessageType.AgentResponse, data);
 
-    // Extract length from first 4 bytes
-    const length = encoded.readUInt32BE(0);
-
-    // JSON payload follows
-    const json = encoded.subarray(4);
-    expect(json.length).toBe(length);
-    expect(JSON.parse(json.toString("utf-8"))).toEqual(data);
+    expect(encoded.readUInt32BE(0)).toBe(encoded.length - 4);
+    expect(encoded.readUInt8(4)).toBe(0x20);
+    expect(JSON.parse(encoded.subarray(5).toString("utf-8"))).toEqual(data);
   });
 
-  it("decodes length-prefixed messages", () => {
-    const original = {
-      version: 1,
-      decision: "allow",
-      request_headers: [],
-      response_headers: [],
-    };
+  it("decodes frames split across reads and several in one read", () => {
+    const a = encodeFrame(MessageType.Ping, { n: 1 });
+    const b = encodeFrame(MessageType.Configure, { config: { nested: { v: 2 } } });
+    const both = Buffer.concat([a, b]);
+    const decoder = new FrameDecoder();
 
-    const encoded = encodeMessage(original);
-    const decoded = decodeMessage(encoded);
-
-    expect(decoded).toEqual(original);
+    expect(decoder.push(both.subarray(0, 3))).toEqual([]);
+    const frames = decoder.push(both.subarray(3));
+    expect(frames.map((f) => f.type)).toEqual([0x41, 0x17]);
+    expect(JSON.parse(frames[1].payload.toString())).toEqual({ config: { nested: { v: 2 } } });
   });
 
-  it("handles complex nested structures", () => {
-    const complex = {
-      version: 1,
-      decision: { block: { status: 403, body: "Forbidden" } },
-      request_headers: [
-        { set: { name: "X-Custom", value: "value" } },
-        { remove: { name: "X-Remove" } },
-      ],
-      audit: {
-        tags: ["security", "auth"],
-        rule_ids: ["RULE_001"],
-        confidence: 0.95,
-        custom: { user_id: "12345" },
-      },
-    };
+  it("enforces the 16 MB UDS limit", () => {
+    const largeData = { data: "x".repeat(MAX_MESSAGE_SIZE_UDS + 1) };
+    expect(() => encodeFrame(MessageType.AgentResponse, largeData)).toThrow(/exceeds maximum/);
 
-    const encoded = encodeMessage(complex);
-    const decoded = decodeMessage(encoded);
-
-    expect(decoded).toEqual(complex);
+    const header = Buffer.alloc(5);
+    header.writeUInt32BE(MAX_MESSAGE_SIZE_UDS + 2, 0);
+    expect(() => new FrameDecoder().push(header)).toThrow(/exceeds maximum/);
   });
 
-  it("enforces MAX_MESSAGE_SIZE", () => {
-    // Create data that exceeds max size
-    const largeData = {
-      data: "x".repeat(MAX_MESSAGE_SIZE + 1),
-    };
-
-    expect(() => encodeMessage(largeData)).toThrow(/exceeds maximum/);
-  });
-
-  it("validates minimum message length", () => {
-    // Less than 4 bytes for length prefix
-    expect(() => decodeMessage(Buffer.alloc(3))).toThrow(/too short/);
-  });
-
-  it("validates declared vs actual length", () => {
-    // Create a message claiming to be longer than it is
-    const buffer = Buffer.alloc(8);
-    buffer.writeUInt32BE(100, 0); // Claims 100 bytes
-    buffer.write("test", 4); // Only 4 bytes of data
-
-    // This should work but decode only what's available
-    // (depending on implementation, might throw or handle gracefully)
-  });
-});
-
-describe("Header Operations Format", () => {
-  it("serializes set operations correctly", async () => {
-    const handler = new AgentHandler(new SimpleTestAgent());
-
-    const event = {
-      event_type: "request_headers",
-      payload: {
-        metadata: {
-          correlation_id: "header-test",
-          request_id: "header-req",
-          client_ip: "127.0.0.1",
-          client_port: 12345,
-        },
-        method: "GET",
-        uri: "/api/test",
-        headers: {},
-      },
-    };
-
-    const response = await handler.handleEvent(event);
-
-    // Should have the response header added by SimpleTestAgent
-    const responseHeaders = response.response_headers as Array<Record<string, unknown>>;
-    const setOp = responseHeaders.find((h) => "set" in h);
-
-    expect(setOp).toBeDefined();
-    expect(setOp!.set).toEqual({
-      name: "X-Agent",
-      value: "simple-test-agent",
-    });
+  it("rejects a zero-length frame", () => {
+    expect(() => new FrameDecoder().push(Buffer.alloc(4))).toThrow(/Zero-length/);
   });
 });
