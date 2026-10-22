@@ -38,7 +38,18 @@
  */
 
 // Agent
-export { AgentV2, isAgentV2 } from "./agent.js";
+export { AgentV2, asAgentV2, isAgentV2 } from "./agent.js";
+
+// UDS transport (wire format)
+export {
+  MessageType,
+  MessageTypeValue,
+  Frame,
+  FrameDecoder,
+  encodeFrame,
+  capabilitiesToUds,
+  serveUdsConnection,
+} from "./uds.js";
 
 // Handler
 export { AgentHandlerV2 } from "./handler.js";

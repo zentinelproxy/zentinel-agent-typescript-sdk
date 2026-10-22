@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./examples",
+    "outDir": "./build/examples",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["examples/hello-agent.ts", "examples/conformance-agent.ts"],
+  "exclude": ["node_modules", "dist", "build"]
+}

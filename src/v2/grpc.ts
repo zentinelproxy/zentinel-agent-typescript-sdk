@@ -11,7 +11,8 @@ import { fileURLToPath } from "node:url";
 import * as path from "node:path";
 
 import { AgentHandlerV2 } from "./handler.js";
-import { AgentCapabilities, AgentCapabilitiesData, PROTOCOL_VERSION_2 } from "./types.js";
+import { AgentCapabilitiesData, PROTOCOL_VERSION_2 } from "./types.js";
+import { capabilitiesToUds } from "./uds.js";
 
 // ---------------------------------------------------------------------------
 // Proto loading
@@ -289,7 +290,13 @@ export function jsonResponseToProto(
       rule_ids: (audit.rule_ids as string[]) || [],
       confidence: audit.confidence as number | undefined,
       reason_codes: (audit.reason_codes as string[]) || [],
-      custom: (audit.custom as Record<string, string>) || {},
+      // proto `map<string, string>`: anything else travels as JSON
+      custom: Object.fromEntries(
+        Object.entries((audit.custom as Record<string, unknown>) || {}).map(([k, v]) => [
+          k,
+          typeof v === "string" ? v : JSON.stringify(v),
+        ])
+      ),
     };
   }
 
@@ -326,40 +333,82 @@ function headerOpsToProto(
 }
 
 /**
- * Serialize capabilities data to proto-compatible format.
+ * Capabilities as the proto `AgentCapabilities` message.
  */
 function capabilitiesToProto(
   caps: AgentCapabilitiesData | undefined
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): any {
   if (!caps) return undefined;
-  if (caps instanceof AgentCapabilities) {
-    return caps.toJSON();
-  }
-  // Fallback for plain AgentCapabilitiesData objects
+  const uds = capabilitiesToUds(caps);
   return {
-    agent_id: caps.agentId,
-    name: caps.name,
-    version: caps.version,
-    features: {
-      streaming_body: caps.features.streamingBody,
-      websocket: caps.features.websocket,
-      guardrails: caps.features.guardrails,
-      config_push: caps.features.configPush,
-      metrics_export: caps.features.metricsExport,
-      concurrent_requests: caps.features.concurrentRequests,
-      cancellation: caps.features.cancellation,
-      flow_control: caps.features.flowControl,
-      health_reporting: caps.features.healthReporting,
-    },
+    protocol_version: PROTOCOL_VERSION_2,
+    agent_id: uds.agent_id,
+    name: uds.name,
+    version: uds.version,
+    // The proto's EventType numbering differs from the UDS one: it starts at
+    // EVENT_TYPE_REQUEST_HEADERS = 1 and puts CONFIGURE last, at 8.
+    supported_events: (caps.supportedEvents ?? [])
+      .map((e) => GRPC_EVENT_NUMBERS[e])
+      .filter((n): n is number => n !== undefined),
+    features: uds.features,
     limits: {
-      max_body_size: caps.limits.maxBodySize,
-      preferred_chunk_size: caps.limits.preferredChunkSize,
+      ...(uds.limits as Record<string, unknown>),
       max_processing_time_ms: caps.limits.maxProcessingTimeMs,
     },
-    health: {
+    health_config: {
       report_interval_ms: caps.health.reportIntervalMs,
-      timeout_ms: caps.health.timeoutMs,
+      include_load_metrics: false,
+      include_resource_metrics: false,
+    },
+  };
+}
+
+const GRPC_EVENT_NUMBERS: Record<string, number> = {
+  request_headers: 1,
+  request_body_chunk: 2,
+  response_headers: 3,
+  response_body_chunk: 4,
+  request_complete: 5,
+  websocket_frame: 6,
+  guardrail_inspect: 7,
+  configure: 8,
+};
+
+/** The handshake answer for a proto `HandshakeRequest`. */
+async function answerHandshake(
+  handler: AgentHandlerV2,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  hs: any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any> {
+  let config: Record<string, unknown> | undefined;
+  if (hs.config_json) {
+    try {
+      config = JSON.parse(hs.config_json);
+    } catch {
+      // the configure event that follows is authoritative
+    }
+  }
+  const versions: number[] = hs.supported_versions || [];
+  const result = await handler.onHandshake({
+    supportedVersions: versions,
+    proxyId: hs.proxy_id || "",
+    proxyVersion: hs.proxy_version || "",
+    config,
+  });
+  let success = result.success;
+  let error = result.error;
+  if (success && versions.length > 0 && !versions.includes(PROTOCOL_VERSION_2)) {
+    success = false;
+    error = `Unsupported protocol versions ${JSON.stringify(versions)}`;
+  }
+  return {
+    handshake: {
+      protocol_version: PROTOCOL_VERSION_2,
+      success,
+      error,
+      capabilities: capabilitiesToProto(result.capabilities ?? handler.capabilities()),
     },
   };
 }
@@ -386,30 +435,15 @@ function createServiceImpl(
 
         // Handshake
         if (kind === "handshake") {
-          const hs = request.handshake;
-          let config: Record<string, unknown> | undefined;
-          if (hs.config_json) {
-            try {
-              config = JSON.parse(hs.config_json);
-            } catch {
-              // ignore
-            }
-          }
-          const hsResponse = await handler.onHandshake({
-            supportedVersions: hs.supported_versions || [],
-            proxyId: hs.proxy_id || "",
-            proxyVersion: hs.proxy_version || "",
-            config,
-          });
-          const caps = hsResponse.capabilities;
-          callback(null, {
-            handshake: {
-              protocol_version: PROTOCOL_VERSION_2,
-              success: hsResponse.success,
-              error: hsResponse.error,
-              capabilities: capabilitiesToProto(caps),
-            },
-          });
+          callback(null, await answerHandshake(handler, request.handshake));
+          return;
+        }
+
+        // Configure
+        if (kind === "configure") {
+          const json = protoEventToJson(request)!;
+          const response = await handler.handleEvent(json);
+          callback(null, jsonResponseToProto(response, ""));
           return;
         }
 
@@ -449,89 +483,120 @@ function createServiceImpl(
     },
 
     // ----- ProcessStream (bidirectional) -----
-    ProcessStream: (
-      call: grpc.ServerDuplexStream<unknown, unknown>
-    ) => {
+    //
+    // The proxy's connection: a handshake, then (when the agent has a
+    // `config { }` block) a ConfigureEvent followed by a Ping, whose Pong
+    // tells the proxy the configuration was applied; then events.
+    ProcessStream: (call: grpc.ServerDuplexStream<unknown, unknown>) => {
       let handshakeDone = false;
+      let closed = false;
+      // Messages are applied in arrival order: a Ping is answered only after
+      // the ConfigureEvent before it has been applied. Events are started in
+      // order and may then complete concurrently.
+      let chain: Promise<void> = Promise.resolve();
 
-      call.on("data", async (request: unknown) => {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const msg = request as any;
-          const kind: string | undefined = msg.message;
-
-          // Handshake must be first
-          if (kind === "handshake") {
-            const hs = msg.handshake;
-            let config: Record<string, unknown> | undefined;
-            if (hs.config_json) {
-              try {
-                config = JSON.parse(hs.config_json);
-              } catch {
-                // ignore
-              }
-            }
-            const hsResponse = await handler.onHandshake({
-              supportedVersions: hs.supported_versions || [],
-              proxyId: hs.proxy_id || "",
-              proxyVersion: hs.proxy_version || "",
-              config,
-            });
-            const caps = hsResponse.capabilities;
-            call.write({
-              handshake: {
-                protocol_version: PROTOCOL_VERSION_2,
-                success: hsResponse.success,
-                error: hsResponse.error,
-                capabilities: capabilitiesToProto(caps),
-              },
-            });
-            handshakeDone = true;
-            return;
-          }
-
-          if (!handshakeDone) {
-            logger("warn", "ProcessStream: expected handshake as first message");
-            call.write({
-              response: { allow: {}, correlation_id: "" },
-            });
-            return;
-          }
-
-          // Ping
-          if (kind === "ping") {
-            const ping = msg.ping;
-            call.write({
-              pong: {
-                sequence: ping.sequence,
-                ping_timestamp_ms: ping.timestamp_ms,
-                timestamp_ms: Date.now(),
-              },
-            });
-            return;
-          }
-
-          // Event
-          const jsonEvent = protoEventToJson(msg);
-          if (!jsonEvent) {
-            logger("warn", `ProcessStream: unknown message type: ${kind}`);
-            return;
-          }
-
-          const correlationId = extractCorrelationId(msg, kind);
-          const jsonResponse = await handler.handleEvent(jsonEvent);
-          call.write(jsonResponseToProto(jsonResponse, correlationId));
-        } catch (error) {
-          logger("error", `ProcessStream error: ${error}`);
+      const write = (message: unknown): void => {
+        if (!closed) {
+          call.write(message);
         }
+      };
+      const close = (): void => {
+        if (!closed) {
+          closed = true;
+          call.end();
+        }
+      };
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handle = async (msg: any): Promise<void> => {
+        const kind: string | undefined = msg.message;
+
+        if (kind === "handshake") {
+          const answer = await answerHandshake(handler, msg.handshake);
+          write(answer);
+          if (answer.handshake.success) {
+            handshakeDone = true;
+          } else {
+            close();
+          }
+          return;
+        }
+
+        if (!handshakeDone) {
+          logger("warn", `ProcessStream: ${kind} before the handshake; closing the stream`);
+          close();
+          return;
+        }
+
+        if (kind === "ping") {
+          write({
+            pong: {
+              sequence: msg.ping.sequence,
+              ping_timestamp_ms: msg.ping.timestamp_ms,
+              timestamp_ms: Date.now(),
+            },
+          });
+          return;
+        }
+
+        if (kind === "cancel") {
+          return;
+        }
+
+        if (kind === "configure") {
+          let config: Record<string, unknown>;
+          try {
+            config = msg.configure.config_json ? JSON.parse(msg.configure.config_json) : {};
+          } catch (error) {
+            logger("error", `Configuration is not valid JSON (${error}); closing the stream`);
+            close();
+            return;
+          }
+          const accepted = await handler.onConfigure(
+            config,
+            msg.configure.config_version ?? undefined
+          );
+          if (!accepted) {
+            // The protocol has no reply to a configure event: ending the
+            // stream is how the proxy learns of the rejection.
+            logger("error", "Configuration rejected; closing the stream");
+            close();
+          }
+          return;
+        }
+
+        const jsonEvent = protoEventToJson(msg);
+        if (!jsonEvent) {
+          logger("warn", `ProcessStream: unknown message type: ${kind}`);
+          return;
+        }
+        const correlationId = extractCorrelationId(msg, kind);
+        const respond = async (): Promise<void> => {
+          const jsonResponse = await handler.handleEvent(jsonEvent);
+          write(jsonResponseToProto(jsonResponse, correlationId));
+        };
+        void respond().catch((error) => logger("error", `ProcessStream error: ${error}`));
+      };
+
+      // Send the response headers now. The proxy (tonic) waits for them
+      // before it sends its handshake, and grpc-js would otherwise hold them
+      // back until the first message: each side would wait for the other,
+      // and the handshake never completed (zentinel#599, #600).
+      call.sendMetadata(new grpc.Metadata());
+
+      call.on("data", (request: unknown) => {
+        chain = chain
+          .then(() => handle(request))
+          .catch((error) => logger("error", `ProcessStream error: ${error}`));
       });
 
       call.on("end", () => {
         handler.onStreamClosed();
-        call.end();
+        void chain.then(close);
       });
 
       call.on("error", (error) => {
+        closed = true;
         if ((error as grpc.ServiceError).code !== grpc.status.CANCELLED) {
           logger("error", `ProcessStream error: ${error.message}`);
         }

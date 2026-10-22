@@ -35,6 +35,9 @@ import {
 
 type LogFn = (level: string, message: string) => void;
 
+/** Requests whose state the handler keeps at most (see `_remember`). */
+const MAX_TRACKED_REQUESTS = 10_000;
+
 /**
  * Handler that wraps an AgentV2 and provides protocol v2 handling.
  *
@@ -68,25 +71,72 @@ export class AgentHandlerV2 {
    * Get agent capabilities.
    */
   capabilities(): AgentCapabilities {
-    return this._agent.capabilities();
+    const caps = this._agent.capabilities();
+    if (!caps.supportedEvents || caps.supportedEvents.length === 0) {
+      caps.supportedEvents = this._derivedEvents();
+    }
+    return caps;
+  }
+
+  /** The events the agent's implemented methods handle. */
+  private _derivedEvents(): string[] {
+    const agent = this._agent;
+    const events = ["request_headers"];
+    if (agent.onRequestBody) events.push("request_body_chunk");
+    if (agent.onResponse) events.push("response_headers");
+    if (agent.onResponseBody) events.push("response_body_chunk");
+    if (agent.onRequestComplete) events.push("request_complete");
+    if (agent.onWebSocketFrame) events.push("websocket_frame");
+    if (agent.onGuardrailInspect) events.push("guardrail_inspect");
+    return events;
+  }
+
+  /**
+   * Remember per-request state, bounded: entries are dropped when the
+   * request completes, and the oldest go first when an agent never
+   * subscribes to `request_complete`.
+   */
+  private _remember<V>(map: Map<string, V>, key: string, value: V): void {
+    map.delete(key);
+    map.set(key, value);
+    while (map.size > MAX_TRACKED_REQUESTS) {
+      const oldest = map.keys().next().value as string;
+      map.delete(oldest);
+    }
+  }
+
+  /** The cached request for a correlation id, or a minimal stand-in. */
+  private _requestFor(correlationId: string): Request {
+    return (
+      this._requests.get(correlationId) ??
+      new Request({
+        metadata: {
+          correlationId,
+          requestId: "",
+          clientIp: "",
+          clientPort: 0,
+          protocol: "HTTP/1.1",
+        },
+        method: "",
+        uri: "",
+        headers: {},
+      })
+    );
   }
 
   /**
    * Handle v2 handshake from proxy.
    */
-  async onHandshake(request: HandshakeRequest): Promise<HandshakeResponse> {
-    // Process configuration if present
-    if (request.config && Object.keys(request.config).length > 0) {
-      try {
-        if (this._agent.onConfigure) {
-          await this._agent.onConfigure(request.config);
-        }
-      } catch (error) {
-        return createFailedHandshake(`Configuration rejected: ${error}`);
-      }
+  async onHandshake(_request: HandshakeRequest): Promise<HandshakeResponse> {
+    // The handshake carries the agent's configuration too, but it is not
+    // applied here: the proxy follows the handshake with a Configure message
+    // on every connection, and that is what reaches `onConfigure` (as in the
+    // Rust SDK), so the agent is configured once per connection, not twice.
+    try {
+      return createSuccessHandshake(this.capabilities());
+    } catch (error) {
+      return createFailedHandshake(`Capabilities unavailable: ${error}`);
     }
-
-    return createSuccessHandshake(this.capabilities());
   }
 
   /**
@@ -193,16 +243,14 @@ export class AgentHandlerV2 {
     payload: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
     const event = parseConfigureEvent(payload);
-    try {
-      if (this._agent.onConfigure) {
-        await this._agent.onConfigure(event.config);
-      }
-      this._logger("info", `Agent configured: ${event.agentId}`);
-      return { success: true };
-    } catch (error) {
-      this._logger("error", `Configuration failed: ${error}`);
-      return { success: false, error: String(error) };
-    }
+    const accepted = await this.onConfigure(event.config, payload.config_version as string | undefined);
+    // The proxy waits for an agent response to its Configure message and uses
+    // the connection only if it is an allow.
+    return agentResponseToDict(
+      accepted
+        ? Decision.allow().build()
+        : Decision.block(500).withBody("Configuration rejected").build()
+    );
   }
 
   private async _handleRequestHeaders(
@@ -212,8 +260,7 @@ export class AgentHandlerV2 {
     const request = new Request(event);
 
     // Cache request for response correlation
-    this._requests.set(event.metadata.correlationId, request);
-    this._requestBodies.set(event.metadata.correlationId, Buffer.alloc(0));
+    this._remember(this._requests, event.metadata.correlationId, request);
 
     const decision = this._agent.onRequest
       ? await this._agent.onRequest(request)
@@ -228,25 +275,21 @@ export class AgentHandlerV2 {
     const event = parseRequestBodyChunkEvent(payload);
     const correlationId = event.correlationId;
 
-    // Accumulate body chunks
-    const existingBody = this._requestBodies.get(correlationId);
-    if (existingBody !== undefined) {
-      this._requestBodies.set(correlationId, Buffer.concat([existingBody, event.data]));
-    }
+    // Accumulate body chunks (synchronously, before any await, so chunks
+    // dispatched in order are accumulated in order)
+    const existingBody = this._requestBodies.get(correlationId) ?? Buffer.alloc(0);
+    const body = Buffer.concat([existingBody, event.data]);
 
     // Only call handler on last chunk
     if (event.isLast) {
-      const cachedRequest = this._requests.get(correlationId);
-      if (cachedRequest) {
-        const request = cachedRequest.withBody(
-          this._requestBodies.get(correlationId) || Buffer.alloc(0)
-        );
-        const decision = this._agent.onRequestBody
-          ? await this._agent.onRequestBody(request)
-          : Decision.allow();
-        return agentResponseToDict(decision.build());
-      }
+      this._requestBodies.delete(correlationId);
+      const request = this._requestFor(correlationId).withBody(body);
+      const decision = this._agent.onRequestBody
+        ? await this._agent.onRequestBody(request)
+        : Decision.allow();
+      return agentResponseToDict(decision.build());
     }
+    this._remember(this._requestBodies, correlationId, body);
 
     // For non-final chunks, return allow with needs_more
     return agentResponseToDict(Decision.allow().needsMoreData().build());
@@ -258,18 +301,14 @@ export class AgentHandlerV2 {
     const event = parseResponseHeadersEvent(payload);
     const correlationId = event.correlationId;
 
-    // Get cached request
-    const request = this._requests.get(correlationId);
-    if (!request) {
-      this._logger("warn", `No cached request for correlation_id: ${correlationId}`);
-      return agentResponseToDict(Decision.allow().build());
-    }
+    const request = this._requestFor(correlationId);
 
     // Cache the response headers event for body phase
-    this._responseHeaders.set(correlationId, event);
+    if (this._agent.onResponseBody) {
+      this._remember(this._responseHeaders, correlationId, event);
+    }
 
     const response = new Response(event);
-    this._responseBodies.set(correlationId, Buffer.alloc(0));
 
     const decision = this._agent.onResponse
       ? await this._agent.onResponse(request, response)
@@ -285,30 +324,27 @@ export class AgentHandlerV2 {
     const correlationId = event.correlationId;
 
     // Accumulate body chunks
-    const existingBody = this._responseBodies.get(correlationId);
-    if (existingBody !== undefined) {
-      this._responseBodies.set(correlationId, Buffer.concat([existingBody, event.data]));
-    }
+    const existingBody = this._responseBodies.get(correlationId) ?? Buffer.alloc(0);
+    const body = Buffer.concat([existingBody, event.data]);
 
     // Only call handler on last chunk
     if (event.isLast) {
-      const request = this._requests.get(correlationId);
-      if (request) {
-        // Use cached response headers or create a minimal one
-        const responseEvent = this._responseHeaders.get(correlationId) || {
-          correlationId,
-          status: 200,
-          headers: {},
-        };
-        const response = new Response(responseEvent).withBody(
-          this._responseBodies.get(correlationId) || Buffer.alloc(0)
-        );
-        const decision = this._agent.onResponseBody
-          ? await this._agent.onResponseBody(request, response)
-          : Decision.allow();
-        return agentResponseToDict(decision.build());
-      }
+      this._responseBodies.delete(correlationId);
+      const request = this._requestFor(correlationId);
+      // Use cached response headers or create a minimal one
+      const responseEvent = this._responseHeaders.get(correlationId) || {
+        correlationId,
+        status: 200,
+        headers: {},
+      };
+      this._responseHeaders.delete(correlationId);
+      const response = new Response(responseEvent).withBody(body);
+      const decision = this._agent.onResponseBody
+        ? await this._agent.onResponseBody(request, response)
+        : Decision.allow();
+      return agentResponseToDict(decision.build());
     }
+    this._remember(this._responseBodies, correlationId, body);
 
     return agentResponseToDict(Decision.allow().needsMoreData().build());
   }
@@ -330,7 +366,7 @@ export class AgentHandlerV2 {
       await this._agent.onRequestComplete(request, event.status, event.durationMs);
     }
 
-    return { success: true };
+    return agentResponseToDict(Decision.allow().build());
   }
 
   private async _handleWebSocketFrame(
@@ -350,6 +386,10 @@ export class AgentHandlerV2 {
     const response = this._agent.onGuardrailInspect
       ? await this._agent.onGuardrailInspect(event)
       : createGuardrailResponse();
-    return guardrailResponseToDict(response);
+    // The proxy reads an agent response for every event; the guardrail
+    // result travels in its audit metadata.
+    const result = agentResponseToDict(Decision.allow().build());
+    result.audit = { custom: { guardrail: guardrailResponseToDict(response) } };
+    return result;
   }
 }

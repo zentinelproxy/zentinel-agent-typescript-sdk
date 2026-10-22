@@ -53,6 +53,8 @@ export interface AgentFeatures {
  */
 export interface AgentLimits {
   maxBodySize: number;
+  /** Maximum concurrent requests; defaults to `features.concurrentRequests`. */
+  maxConcurrency?: number;
   preferredChunkSize: number;
   maxProcessingTimeMs?: number;
 }
@@ -72,6 +74,11 @@ export interface AgentCapabilitiesData {
   agentId: string;
   name: string;
   version: string;
+  /**
+   * Events the agent handles (`request_headers`, `request_body_chunk`, ...).
+   * Empty means "derive from the agent's handler methods".
+   */
+  supportedEvents?: string[];
   features: AgentFeatures;
   limits: AgentLimits;
   health: HealthConfig;
@@ -84,6 +91,7 @@ export class AgentCapabilities implements AgentCapabilitiesData {
   agentId: string;
   name: string;
   version: string;
+  supportedEvents: string[] = [];
   features: AgentFeatures;
   limits: AgentLimits;
   health: HealthConfig;
@@ -111,6 +119,12 @@ export class AgentCapabilities implements AgentCapabilitiesData {
       reportIntervalMs: 30000,
       timeoutMs: 5000,
     };
+  }
+
+  /** Declare the events the agent handles (overrides the derived list). */
+  withEvents(...events: string[]): this {
+    this.supportedEvents = events;
+    return this;
   }
 
   withStreamingBody(enabled = true): this {
@@ -183,6 +197,7 @@ export class AgentCapabilities implements AgentCapabilitiesData {
       agent_id: this.agentId,
       name: this.name,
       version: this.version,
+      supported_events: this.supportedEvents,
       features: {
         streaming_body: this.features.streamingBody,
         websocket: this.features.websocket,

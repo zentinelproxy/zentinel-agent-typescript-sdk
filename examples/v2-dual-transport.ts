@@ -53,7 +53,7 @@ class DualTransportAgent implements AgentV2 {
     // Apply configuration changes
   }
 
-  async onRequest(request: Request): Promise<Decision> {
+  async onRequest(_request: Request): Promise<Decision> {
     // Reject new requests when draining
     if (this._draining) {
       return Decision.block(503).withBody("Service draining, try another instance");

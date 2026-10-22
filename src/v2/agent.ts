@@ -106,3 +106,34 @@ export interface AgentV2 extends Agent {
 export function isAgentV2(agent: Agent): agent is AgentV2 {
   return typeof (agent as AgentV2).capabilities === "function";
 }
+
+/**
+ * Present a plain `Agent` as an `AgentV2`.
+ *
+ * Agents written against the root `Agent` interface have no `capabilities()`;
+ * this derives them from the agent's name. Every call is forwarded to the
+ * agent itself, so its state stays where its own code reads it.
+ */
+export function asAgentV2(agent: Agent): AgentV2 {
+  if (isAgentV2(agent)) {
+    return agent;
+  }
+  const forward = <K extends keyof Agent>(key: K): Agent[K] => {
+    const fn = agent[key];
+    return (typeof fn === "function" ? fn.bind(agent) : undefined) as Agent[K];
+  };
+  return {
+    get name(): string {
+      return agent.name;
+    },
+    capabilities: () => new AgentCapabilities(agent.name, agent.name, "0.0.0"),
+    onConfigure: forward("onConfigure"),
+    onRequest: forward("onRequest"),
+    onRequestBody: forward("onRequestBody"),
+    onResponse: forward("onResponse"),
+    onResponseBody: forward("onResponseBody"),
+    onRequestComplete: forward("onRequestComplete"),
+    onWebSocketFrame: forward("onWebSocketFrame"),
+    onGuardrailInspect: forward("onGuardrailInspect"),
+  };
+}

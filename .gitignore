@@ -32,3 +32,6 @@ coverage/
 
 # Socket files (for testing)
 *.sock
+
+# Compiled examples (npm run build:examples)
+build/
