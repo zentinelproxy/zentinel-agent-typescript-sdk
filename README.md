@@ -30,7 +30,7 @@ runner with Unix socket and gRPC transports, health and metrics reporting.
 Install it from source: the npm release is older than `main`.
 
 > **Status (checked on 2026-10-22): agents built with this SDK pass the
-> [conformance harness](https://github.com/zentinelproxy/zentinel/tree/sdk/conformance-harness/sdk-conformance)
+> [conformance harness](https://github.com/zentinelproxy/zentinel/tree/main/sdk-conformance)
 > against Zentinel built from `main`**, over the Unix socket and gRPC:
 > handshake, configuration, request and response header mutations, blocking,
 > request-body inspection and reconnecting after a restart. CI runs the
@@ -160,7 +160,7 @@ npm test
 CI runs the same on Node 20, then the conformance harness: it builds the SDK
 and [`examples/conformance-agent.ts`](examples/conformance-agent.ts) and runs
 them behind a real `zentinel`. To run it locally, with a `zentinel` binary
-built from Zentinel's `main` and a checkout of its `sdk/conformance-harness`
+built from Zentinel's `main` and a checkout of its `main`
 branch:
 
 ```bash

@@ -70,7 +70,7 @@ jobs:
 
       # The conformance agent, over a Unix socket and over gRPC.
       - name: Conformance agent
-        uses: zentinelproxy/zentinel/sdk-conformance@sdk/conformance-harness
+        uses: zentinelproxy/zentinel/sdk-conformance@main
         with:
           # Build zentinel from main until a release includes zentinel#603
           # (config delivery); then pin `zentinel-version` to that release.
@@ -81,7 +81,7 @@ jobs:
       # The README quick-start agent, so the README cannot drift from code
       # that works.
       - name: README quick-start agent
-        uses: zentinelproxy/zentinel/sdk-conformance@sdk/conformance-harness
+        uses: zentinelproxy/zentinel/sdk-conformance@main
         with:
           zentinel-ref: main
           profile: hello
