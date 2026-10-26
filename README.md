@@ -31,13 +31,13 @@ Install it from source: the npm release is older than `main`.
 
 > **Status (checked on 2026-10-22): agents built with this SDK pass the
 > [conformance harness](https://github.com/zentinelproxy/zentinel/tree/main/sdk-conformance)
-> against Zentinel built from `main`**, over the Unix socket and gRPC:
+> against Zentinel 26.10_8**, over the Unix socket and gRPC:
 > handshake, configuration, request and response header mutations, blocking,
 > request-body inspection and reconnecting after a restart. CI runs the
-> harness on every change. Delivering an agent's `config { }` block needs a
-> Zentinel release that includes zentinel#603; with 0.6.50 and earlier,
-> `onConfigure` is never called. Not yet published to npm (see
-> [Install](#install)).
+> harness on every change. Delivering an agent's `config { }` block needs
+> Zentinel 26.10_8 or later, which sends it on every connection
+> (zentinel#603); with 0.6.50 (26.10_7) and earlier, `onConfigure` is never
+> called. Not yet published to npm (see [Install](#install)).
 
 ## Quick start
 
@@ -160,8 +160,8 @@ npm test
 CI runs the same on Node 20, then the conformance harness: it builds the SDK
 and [`examples/conformance-agent.ts`](examples/conformance-agent.ts) and runs
 them behind a real `zentinel`. To run it locally, with a `zentinel` binary
-built from Zentinel's `main` and a checkout of its `main`
-branch:
+from release 26.10_8 or later and a checkout of Zentinel at the same
+version:
 
 ```bash
 npm run build && npm run build:examples
